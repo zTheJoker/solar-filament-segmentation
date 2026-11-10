@@ -1,6 +1,6 @@
 """End-to-end frame pipeline: networks -> candidates -> verifier -> post-processing -> RLE.
 
-    image --(EnsemblePredictor)--> decode / single / vote maps (2048^2)
+    image --(EnsemblePredictor)--> decode / single / vote maps (2048^2; FZ: fused with the specialists)
           --(candidate_labels)----> candidate instances (fg >= 0.4, area >= 150)
           --(features + crop CNN + GBM)--> u per candidate, keep = u >= tau
           --(postprocess steps)---> expected-IoU outlines, rejected removed
@@ -42,11 +42,11 @@ class FrameResult:
 
 
 class Pipeline:
-    """The submitted pipeline. Model lists can be overridden (the notebook's held-out evaluation uses one fold)."""
+    """A configured pipeline (FZ_nz1 or lite). Model lists can be overridden (the held-out evaluation uses one fold)."""
 
-    def __init__(self, cfg: dict, segmenters=None, voters=None, crop_cnns=None, gbm=None):
+    def __init__(self, cfg: dict, segmenters=None, voters=None, crop_cnns=None, gbm=None, specialists=None):
         weights_dir = resolve(cfg['weights']['dir'])
-        self.predictor = EnsemblePredictor(cfg, weights_dir, segmenters, voters)
+        self.predictor = EnsemblePredictor.from_weights(cfg, weights_dir, segmenters, voters, specialists)
         self.verifier = Verifier(cfg, weights_dir, self.predictor.device, crop_cnns, gbm)
         self.settings = CandidateSettings.from_config(cfg)
         self.steps = cfg['postprocess']['steps']

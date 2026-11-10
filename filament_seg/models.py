@@ -12,7 +12,11 @@ Both U-Nets output two logit planes: filament foreground and instance boundary.
 
 Weights live in ``weights/`` as safetensors shards (GitHub refuses files over
 100 MB). ``weights/manifest.json`` lists the shards of every model and a
-SHA-256 of the reassembled state dict, which ``load_model`` verifies.
+SHA-256 of the reassembled fp32 state dict, which ``load_model`` verifies.
+The U-Nets are stored in fp32. The crop CNNs only ever run under bf16 autocast,
+which rounds their convolution/linear weights to bf16 on every call, so those
+tensors are stored in bf16 (exactly what autocast computes with) and widened
+back to fp32 on load; BatchNorm tensors stay fp32.
 """
 from __future__ import annotations
 
@@ -141,7 +145,7 @@ def read_manifest(weights_dir: str | Path) -> dict:
 
 
 def load_state(name: str, weights_dir: str | Path) -> tuple[dict, dict]:
-    """Reassemble the shards of ``name`` into one fp32 state dict and verify its content hash."""
+    """Reassemble the shards of ``name`` into one fp32 state dict (bf16-stored tensors widened) and verify its hash."""
     from safetensors.torch import load_file
     entry = read_manifest(weights_dir)[name]
     state = {}
@@ -149,6 +153,7 @@ def load_state(name: str, weights_dir: str | Path) -> tuple[dict, dict]:
         part = load_file(str(Path(weights_dir)/shard))
         assert not set(part) & set(state), f'{shard}: duplicate keys across shards'
         state.update(part)
+    state = {k: v.float() if v.dtype == torch.bfloat16 else v for k, v in state.items()}
     if state_dict_sha256(state) != entry['state_sha256']:
         raise ValueError(f'{name}: reassembled weights do not match the manifest hash')
     return state, entry

@@ -13,6 +13,7 @@ all other candidates. The score is the mean over the 5 fold CNNs of a
 """
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 import pickle
 
@@ -63,7 +64,8 @@ class Verifier:
         names = crop_cnns if crop_cnns is not None else cfg['weights']['crop_cnns']
         self.cnns = [load_model(n, weights_dir, device) for n in names]
         gbm_path = Path(weights_dir)/(gbm or cfg['weights']['gbm'])
-        bundle = pickle.loads(gbm_path.read_bytes())
+        raw = gbm_path.read_bytes()
+        bundle = pickle.loads(gzip.decompress(raw) if gbm_path.suffix == '.gz' else raw)
         self.gbm_models, self.feature_cols = bundle['models'], list(bundle['cols'])
 
     @torch.inference_mode()

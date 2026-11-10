@@ -1,16 +1,18 @@
 """Out-of-fold candidate table for the verifier (features, targets, crops).
 
 Every labelled frame is predicted only by the fold networks that did NOT see
-it in training (ConvNeXt fold k for the maps, ResNet34 fold k for the votes),
-with the same TTA, decoding and features as inference. Each candidate gets
+it in training (ConvNeXt fold k for the maps, ResNet34 fold k for the votes,
+and in FZ mode specialist fold k fused into the maps), with the same TTA,
+decoding and features as inference. Each candidate gets
 two targets from the annotations, averaged over the frame's annotators:
   match = 1 if one-to-one matched with IoU > .5 (Hungarian, max cardinality)
   u     = matched IoU (0 if unmatched)  -> the candidate's share of PQ
 Output npz: keys, counts (candidates per frame), features (N, 46),
 targets (N, 2) = [match, u], crops (N, 5, 128, 128) uint8, sides (N,).
 
-    python train/build_verifier_data.py --runs work/runs --out work/verifier_data.npz
-    # --runs holds cnx_fold{k}/best.pt and r34_fold{k}/best.pt; --from-weights uses weights/ instead
+    python train/build_verifier_data.py --config configs/f_lite.yaml --runs work/runs --out work/verifier_data_lite.npz
+    python train/build_verifier_data.py --config configs/fz_nz1.yaml --runs work/runs --out work/verifier_data_fz.npz
+    # --runs holds cnx_fold{k}/, r34_fold{k}/ (and spec_fold{k}/ for FZ) best.pt; --from-weights uses weights/
 """
 from __future__ import annotations
 
@@ -26,11 +28,11 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from filament_seg.candidates import CandidateSettings, candidate_labels  # noqa: E402
 from filament_seg.config import data_path, load_config, resolve  # noqa: E402
-from filament_seg.data import list_images, load_ground_truth, model_input, read_gray  # noqa: E402
+from filament_seg.data import list_images, load_ground_truth, read_gray  # noqa: E402
 from filament_seg.features import candidate_features  # noqa: E402
-from filament_seg.inference import pick_device, predict_tta, to_native  # noqa: E402
+from filament_seg.inference import EnsemblePredictor, pick_device  # noqa: E402
 from filament_seg.metrics import overlap_matrices  # noqa: E402
-from filament_seg.models import ConvNeXtUNet, ResNet34UNet, load_model  # noqa: E402
+from filament_seg.models import ConvNeXtUNet, ResNet34UNet  # noqa: E402
 from filament_seg.submission import encode_label_image  # noqa: E402
 from filament_seg.verifier import candidate_crops  # noqa: E402
 
@@ -59,8 +61,8 @@ def load_checkpoint_net(path, device):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--config', default='configs/f_full_refit_nz1.yaml')
-    ap.add_argument('--runs', type=Path, help='folder with cnx_fold{k}/best.pt and r34_fold{k}/best.pt')
+    ap.add_argument('--config', default='configs/fz_nz1.yaml', help='fz_nz1.yaml (fused maps) or f_lite.yaml')
+    ap.add_argument('--runs', type=Path, help="folder with cnx_fold{k}/, r34_fold{k}/ (FZ: also spec_fold{k}/) best.pt")
     ap.add_argument('--from-weights', action='store_true', help='use the released weights/ instead of --runs')
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--smoke', action='store_true', help='2 frames per fold')
@@ -73,19 +75,17 @@ def main():
     out = {k: [] for k in ['keys', 'counts', 'features', 'targets', 'crops', 'sides']}
     for fold in folds:
         k = fold['fold']
+        fz = bool(cfg['weights'].get('specialists'))
         if a.from_weights:
-            cnx = load_model(f'cnx_fold{k}', resolve(cfg['weights']['dir']), device)
-            r34 = load_model(f'r34_fold{k}', resolve(cfg['weights']['dir']), device)
+            pred = EnsemblePredictor.from_weights(cfg, resolve(cfg['weights']['dir']), [f'cnx_fold{k}'], [f'r34_fold{k}'],
+                                                  [f'spec_fold{k}'] if fz else [])
         else:
-            cnx = load_checkpoint_net(a.runs/f'cnx_fold{k}'/'best.pt', device)
-            r34 = load_checkpoint_net(a.runs/f'r34_fold{k}'/'best.pt', device)
+            net = lambda name: load_checkpoint_net(a.runs/f'{name}_fold{k}'/'best.pt', device)
+            pred = EnsemblePredictor(cfg, [net('cnx')], [net('r34')], [net('spec')] if fz else [], device)
         keys = sorted(fold['heldout_sources'])[:2 if a.smoke else None]
         truth = load_ground_truth(data_path(cfg, 'train_annotations'), set(keys))
         for key in keys:
-            x = torch.from_numpy(model_input(paths[key], cfg['inference']['side']))[None, None].to(device)
-            single, decode = predict_tta(cnx, x)
-            vote = predict_tta(r34, x)[1]
-            maps = {'decode': to_native([decode]), 'single': to_native([single]), 'vote': to_native([vote])}
+            maps = pred(paths[key])
             gray = read_gray(paths[key])
             labels = candidate_labels(maps['decode'][0], settings)
             rles = [{'size': [2048, 2048], 'counts': r.encode('ascii')} for r in encode_label_image(labels)]

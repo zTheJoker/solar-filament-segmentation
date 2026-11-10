@@ -1,18 +1,26 @@
 """Convert training checkpoints into the repository's weights/ folder.
 
-Every network state dict is stored as fp32 safetensors, split into shards of
-at most --max-mb (GitHub rejects files over 100 MB; no Git LFS needed). The
-manifest records, per model, its shards, the SHA-256 of the reassembled state
-dict (verified at load time) and the SHA-256 of the source checkpoint.
+* U-Nets (ConvNeXt, ResNet34, small-filament specialists): fp32 safetensors,
+  split into shards of at most --max-mb (GitHub rejects files over 100 MB).
+* Crop CNNs: they only run under bf16 autocast, which casts conv/linear
+  weights to bf16 on every call; those tensors are therefore stored in bf16
+  (identical computation, half the size). BatchNorm tensors stay fp32.
+* GBM verifiers: gzip-compressed pickles.
+The manifest records, per model, its files, the SHA-256 of the state dict as
+the loader reconstructs it (verified at load time) and the SHA-256 of the
+source checkpoint.
 
     python train/export_weights.py \
-        --cnx runs/cnx_f{0..4}/best.pt --r34 runs/r34_f{0..4}/best.pt \
+        --cnx runs/cnx_fold{0..4}/best.pt --r34 runs/r34_fold{0..4}/best.pt \
         --crop-cnn runs/crop_cnn/cnn_fold{0..4}.pt --gbm runs/verifier_gbm.pkl \
-        --extra-gbm verifier_gbm_without_fold0.pkl=runs/verifier_gbm_without_fold0.pkl --out weights
+        --spec runs/spec_fold{0..4}/best.pt --crop-cnn-fz runs/crop_cnn_fz/cnn_fold{0..4}.pt \
+        --gbm-fz runs/verifier_gbm_fz.pkl \
+        --extra-gbm verifier_gbm_fz_without_fold0.pkl.gz=runs/verifier_gbm_fz_without_fold0.pkl --out weights
 """
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -48,50 +56,80 @@ def shard(state: dict, max_bytes: int) -> list[dict]:
     return parts
 
 
-def export_net(name, checkpoint, architecture, out, max_bytes, extra):
+def autocast_tensors(model_cls, state):
+    """Names of the conv/linear weights and biases (the tensors bf16 autocast casts)."""
+    net = model_cls(pretrained=False)
+    names = set()
+    for mod_name, mod in net.named_modules():
+        if isinstance(mod, (torch.nn.Conv2d, torch.nn.Linear)):
+            names |= {f'{mod_name}.{p}' for p, _ in mod.named_parameters(recurse=False)}
+    assert names <= set(state)
+    return names
+
+
+def export_net(name, checkpoint, architecture, out, max_bytes, extra, bf16_autocast_tensors=False):
     ck = torch.load(checkpoint, map_location='cpu', weights_only=False)
     state = ck['model'] if 'model' in ck else ck
+    stored = dict(state)
+    if bf16_autocast_tensors:
+        from filament_seg.models import ARCHITECTURES
+        for k in autocast_tensors(ARCHITECTURES[architecture], state):
+            stored[k] = state[k].to(torch.bfloat16)
     files = []
-    parts = shard(state, max_bytes)
+    parts = shard(stored, max_bytes)
     for i, part in enumerate(parts, 1):
         fname = f'{name}.safetensors' if len(parts) == 1 else f'{name}.part{i}of{len(parts)}.safetensors'
         save_file(part, str(out/fname))
         files.append(fname)
-    entry = {'architecture': architecture, 'files': files, 'state_sha256': state_dict_sha256(state),
-             'source_checkpoint_sha256': file_sha256(checkpoint), 'dtype': 'float32', **extra}
+    loaded = {k: v.float() if v.dtype == torch.bfloat16 else v for k, v in stored.items()}
+    entry = {'architecture': architecture, 'files': files, 'state_sha256': state_dict_sha256(loaded),
+             'source_checkpoint_sha256': file_sha256(checkpoint),
+             'dtype': 'conv/linear tensors bf16 (run under bf16 autocast), rest fp32' if bf16_autocast_tensors else 'float32',
+             **extra}
     if isinstance(ck, dict) and 'config' in ck:
         cfg = ck['config']
         entry['encoder'] = cfg.get('encoder')
         entry['training'] = {k: cfg[k] for k in ['fold', 'seed', 'epochs', 'epochs_a', 'epochs_b', 'train_sources',
-                                                 'inner_sources', 'precision', 'folds_sha256'] if k in cfg}
+                                                 'inner_sources', 'precision', 'folds_sha256', 'side', 'crop',
+                                                 'small_w', 'init_sha256'] if k in cfg}
         entry['training']['selected_epoch'] = ck.get('epoch')
     return entry
+
+
+def export_gbm(name, path, out):
+    with open(path, 'rb') as src, open(out/name, 'wb') as raw, \
+            gzip.GzipFile(filename='', mode='wb', compresslevel=6, fileobj=raw, mtime=0) as dst:
+        shutil.copyfileobj(src, dst)  # mtime 0 and no file name: byte-identical output on every export
+    return {'architecture': 'bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)', 'files': [name],
+            'sha256': file_sha256(out/name), 'source_sha256': file_sha256(path)}
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--cnx', nargs=5, required=True)
     ap.add_argument('--r34', nargs=5, required=True)
-    ap.add_argument('--crop-cnn', nargs=5, required=True)
-    ap.add_argument('--gbm', required=True)
+    ap.add_argument('--crop-cnn', nargs=5, required=True, help='crop CNNs of the lite (F) verifier')
+    ap.add_argument('--gbm', required=True, help='GBM of the lite (F) verifier')
+    ap.add_argument('--spec', nargs=5, help='small-filament specialists (FZ)')
+    ap.add_argument('--crop-cnn-fz', nargs=5, help='crop CNNs of the FZ verifier')
+    ap.add_argument('--gbm-fz', help='GBM of the FZ verifier')
     ap.add_argument('--extra-gbm', nargs='*', default=[], metavar='NAME=PATH',
-                    help='additional verifier pickles, e.g. the fold-0-excluded GBM used for held-out evaluation')
+                    help='additional verifier pickles, e.g. fold-0-excluded GBMs used for held-out evaluation')
     ap.add_argument('--out', type=Path, default=Path('weights'))
     ap.add_argument('--max-mb', type=float, default=90.)
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
-    max_bytes = int(a.max_mb*1e6)
+    mb = int(a.max_mb*1e6)
     manifest = {}
-    for k, path in enumerate(a.cnx):
-        manifest[f'cnx_fold{k}'] = export_net(f'cnx_fold{k}', path, 'ConvNeXtUNet', a.out, max_bytes, {'fold': k})
-    for k, path in enumerate(a.r34):
-        manifest[f'r34_fold{k}'] = export_net(f'r34_fold{k}', path, 'ResNet34UNet', a.out, max_bytes, {'fold': k})
-    for k, path in enumerate(a.crop_cnn):
-        manifest[f'crop_cnn_fold{k}'] = export_net(f'crop_cnn_fold{k}', path, 'CropVerifierCNN', a.out, max_bytes, {'fold': k})
-    for name, path in [('verifier_gbm.pkl', a.gbm)]+[tuple(e.split('=', 1)) for e in a.extra_gbm]:
-        shutil.copyfile(path, a.out/name)
-        manifest[name] = {'architecture': 'bagged sklearn HistGradientBoostingRegressor (pickle)',
-                          'files': [name], 'sha256': file_sha256(a.out/name), 'source_sha256': file_sha256(path)}
+    for prefix, paths, arch, bf16 in [('cnx', a.cnx, 'ConvNeXtUNet', False), ('r34', a.r34, 'ResNet34UNet', False),
+                                      ('crop_cnn', a.crop_cnn, 'CropVerifierCNN', True),
+                                      ('spec', a.spec or [], 'ConvNeXtUNet', False),
+                                      ('crop_cnn_fz', a.crop_cnn_fz or [], 'CropVerifierCNN', True)]:
+        for k, path in enumerate(paths):
+            manifest[f'{prefix}_fold{k}'] = export_net(f'{prefix}_fold{k}', path, arch, a.out, mb, {'fold': k}, bf16)
+    gbms = [('verifier_gbm.pkl.gz', a.gbm)]+([('verifier_gbm_fz.pkl.gz', a.gbm_fz)] if a.gbm_fz else [])
+    for name, path in gbms+[tuple(e.split('=', 1)) for e in a.extra_gbm]:
+        manifest[name] = export_gbm(name, path, a.out)
     (a.out/'manifest.json').write_text(json.dumps(manifest, indent=1))
     for f in sorted(a.out.iterdir()):
         assert f.stat().st_size < 95e6, f'{f.name} is too large for GitHub'

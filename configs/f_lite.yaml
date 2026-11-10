@@ -1,8 +1,9 @@
-# Final pipeline "F_full_refit_nz1" (public leaderboard 0.39).
+# LITE pipeline "F_full_refit_nz1" (public leaderboard 0.39): the default FZ_nz1 pipeline without the
+# native-resolution small-filament specialists, with its own verifier. About 2.3x faster on CPU.
 # Every path is relative to the repository root unless it is absolute.
 # The FILAMENT_DATA_ROOT environment variable, if set, overrides data.root.
 
-name: F_full_refit_nz1
+name: F_full_refit_nz1  # lite
 
 data:
   # Folder created by unzipping the Kaggle download (contains train/ and test/).
@@ -23,7 +24,7 @@ weights:
   # Five ResNet18 crop classifiers (mean score is one verifier feature).
   crop_cnns: [crop_cnn_fold0, crop_cnn_fold1, crop_cnn_fold2, crop_cnn_fold3, crop_cnn_fold4]
   # 100 bagged HistGradientBoosting regressors (46 features + crop-CNN score).
-  gbm: verifier_gbm.pkl
+  gbm: verifier_gbm.pkl.gz
 
 inference:
   side: 1024            # model resolution; maps are upsampled to the native 2048

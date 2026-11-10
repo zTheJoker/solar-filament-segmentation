@@ -1,0 +1,68 @@
+# DEFAULT pipeline "FZ_nz1": F_full_refit_nz1 plus five native-resolution small-filament specialists
+# whose map is averaged 50/50 with the ConvNeXt map, and a verifier retrained on the fused candidates.
+# Internal held-out PQ +0.015 over the lite pipeline (configs/f_lite.yaml).
+# Every path is relative to the repository root unless it is absolute.
+# The FILAMENT_DATA_ROOT environment variable, if set, overrides data.root.
+
+name: FZ_nz1
+
+data:
+  # Folder created by unzipping the Kaggle download (contains train/ and test/).
+  root: data/MAGFiLO_1.0_Kaggle_2026
+  test_images: test/test_images
+  train_images: train/train_images
+  train_annotations: train/MAGFiLO_1.0_Annotations_kaggle2026_train.json
+  # Calendar-month folds over all 707 labelled sources (used by training and
+  # by the held-out evaluation in the demo notebook).
+  folds: configs/folds_full.json
+
+weights:
+  dir: weights
+  # Five ConvNeXt-T U-Nets, one per fold; their maps are averaged and decoded.
+  segmenters: [cnx_fold0, cnx_fold1, cnx_fold2, cnx_fold3, cnx_fold4]
+  # Five small-filament specialists (ConvNeXt-T U-Nets fine-tuned from the segmenters on native 2048 crops).
+  specialists: [spec_fold0, spec_fold1, spec_fold2, spec_fold3, spec_fold4]
+  # Five ResNet34 U-Nets; only used for the 6 "vote" features of the verifier.
+  voters: [r34_fold0, r34_fold1, r34_fold2, r34_fold3, r34_fold4]
+  # Five ResNet18 crop classifiers (mean score is one verifier feature).
+  crop_cnns: [crop_cnn_fz_fold0, crop_cnn_fz_fold1, crop_cnn_fz_fold2, crop_cnn_fz_fold3, crop_cnn_fz_fold4]
+  # 100 bagged HistGradientBoosting regressors (46 features + crop-CNN score).
+  gbm: verifier_gbm_fz.pkl.gz
+
+inference:
+  side: 1024            # model resolution; maps are upsampled to the native 2048
+  tta: d4               # 8 dihedral views (4 rotations x horizontal flip)
+  device: auto          # auto | cpu | cuda
+  view_batch: 8         # how many TTA views go through a network at once
+  threads: 0            # CPU threads for torch (0 = all cores)
+  specialist:
+    view_batch: 1       # views per forward pass at 2048 (1 keeps CPU memory near 3 GB)
+    autocast: bf16      # as in the submitted run
+    fusion_weight: 0.5  # fused foreground = (1 - w) * base + w * specialist
+
+candidates:
+  fg_threshold: 0.4     # foreground probability threshold of the ensemble map
+  min_area: 150         # native pixels; smaller connected components are dropped
+  fill_holes: true
+
+verifier:
+  tau: 0.25             # keep a candidate if its predicted IoU share u >= tau
+  crop_side: 128
+  cnn_batch: 512
+
+# Post-processing is an ordered list of steps (see filament_seg/postprocess.py).
+# A new step (for example a fragment merge) is added by registering a function
+# in postprocess.STEPS and listing it here with its parameters.
+postprocess:
+  steps:
+    - name: outline_nz1
+      levels: [0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70]
+      base_level: 0.40
+      grow_px: 16
+      band_px: 4
+      bins: 20
+      gamma: 1.0
+    - name: drop_rejected
+
+output:
+  dir: outputs

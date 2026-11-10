@@ -10,6 +10,8 @@ reused for every annotator of a frame. Then, pooled over all records:
 * IoU / Dice distributions over all pairs with a positive score
 * one-to-many / many-to-one relations: for every GT, the number of
   predictions overlapping it (IoU > 0), and vice versa.
+Also returned (not part of the host notebook): every GT's area and whether it
+was hit (IoU > 0.5), for recall by filament size.
 """
 from __future__ import annotations
 
@@ -50,8 +52,9 @@ def evaluate(ground_truth: dict[str, list], predictions: dict[str, list[str]]) -
     ground_truth: {frame id: [(annotator_image_id, [COCO RLE dict, ...]), ...]} (data.load_ground_truth)
     predictions:  {frame id: [compressed RLE string, ...]}
     """
+    from pycocotools import mask as cm
     total = Counter()
-    records, ious, dices, gt_degree, pred_degree = [], [], [], [], []
+    records, ious, dices, gt_degree, pred_degree, gt_area, gt_hit = [], [], [], [], [], [], []
     for key in sorted(ground_truth):
         pred = [{'size': [NATIVE, NATIVE], 'counts': r.encode('ascii')} for r in predictions.get(key, [])]
         for annotator_image, gt in ground_truth[key]:
@@ -64,6 +67,9 @@ def evaluate(ground_truth: dict[str, list], predictions: dict[str, list[str]]) -
             dices.extend(dice[dice > 0].tolist())
             gt_degree.extend((iou > 0).sum(1).tolist())
             pred_degree.extend((iou > 0).sum(0).tolist())
+            gt_area.extend(cm.area(gt).tolist() if gt else [])
+            gt_hit.extend((iou > .5).any(1).tolist())
     return {'overall': pq_from_counts({k: total[k] for k in ['sum_iou', 'tp', 'fp', 'fn']}),
             'records': records, 'positive_ious': np.asarray(ious), 'positive_dices': np.asarray(dices),
-            'gt_degree': Counter(gt_degree), 'pred_degree': Counter(pred_degree)}
+            'gt_degree': Counter(gt_degree), 'pred_degree': Counter(pred_degree),
+            'gt_area': np.asarray(gt_area), 'gt_hit': np.asarray(gt_hit, bool)}

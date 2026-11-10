@@ -62,6 +62,18 @@ def test_folds_file_is_reproducible():
     assert [f['inner_validation_sources'] for f in remade['folds']] == [f['inner_validation_sources'] for f in stored['folds']]
 
 
+def test_fusion_matches_stored_arithmetic():
+    from filament_seg.inference import fuse, specialist_mean
+    rng = np.random.default_rng(0)
+    base = rng.random((2, 64, 64)).astype(np.float16).astype(np.float32)
+    q8 = [rng.integers(0, 256, (64, 64), dtype=np.uint8) for _ in range(5)]
+    q = specialist_mean(q8)
+    assert np.allclose(q, np.mean(q8, 0)/255, atol=1e-6)
+    fused = fuse(base, q, .5)
+    assert np.array_equal(fused[1], base[1])
+    assert np.array_equal(fused[0], ((base[0]+q)/2).astype(np.float16).astype(np.float32))
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

@@ -1,36 +1,52 @@
 # Solar filament instance segmentation (Filament Segmentation Challenge 2026)
 
-This is the code and model weights for our final submission to the Kaggle competition
+This is the code and model weights for our final entry to the Kaggle competition
 [filament-segmentation-2026](https://www.kaggle.com/competitions/filament-segmentation-2026).
-The submission, pipeline **F_full_refit_nz1**, scored **0.39** on the public leaderboard (PQ).
 
 The task is instance segmentation of solar filaments in full-disk GONG H-alpha frames
 (2048×2048). Every filament is one disjoint mask, submitted as a COCO RLE row.
 
-**Reproduce the submission:** open `notebooks/pipeline_demo.ipynb`. It loads the weights stored in
-this repository, runs the whole pipeline on the test frames and checks the resulting
-`submission.csv` against the file we submitted. No retraining is needed. The notebook is saved with
-its outputs.
+Two pipelines are included, selected by config:
+- **FZ_nz1** (default, `configs/fz_nz1.yaml`): the final pipeline. It is lite plus native-resolution
+  small-filament specialists.
+- **Lite** (`configs/f_lite.yaml`, also known as F_full_refit_nz1): our earlier submission, public
+  leaderboard **0.39**. It has no specialists, which makes it about 2.3× faster on a CPU (104 s vs 238 s per frame).
 
-## Method in one paragraph
+**Reproduce the submissions:** open `notebooks/pipeline_demo.ipynb`, which is saved with its outputs.
+It loads the weights stored in this repository, runs both pipelines on the test frames and checks each
+`submission.csv` against the file we submitted. No retraining is needed.
 
-Two families of U-Nets, each trained as 5 calendar-month folds on all 707 labelled frames:
+## Method
+
+**Base networks.** Two families of U-Nets, each trained as 5 calendar-month folds on all 707
+labelled frames:
 - ConvNeXt-T encoder: produces the segmentation
 - ResNet34 encoder: provides a second opinion
 
 Both families predict every frame at 1024² with 8-view dihedral test-time augmentation. The averaged
-ConvNeXt foreground map is upsampled to 2048², thresholded at 0.4 and split into connected
-candidates of at least 150 px.
+ConvNeXt foreground map is upsampled to 2048².
 
-A **verifier** then decides which candidates to keep. Its inputs are 46 image-only features plus the
-score of a crop CNN, and it is a bagged gradient-boosting model. It predicts u, the IoU a candidate
-is expected to have with an annotator's filament (0 if unmatched), and keeps the candidate when
-u ≥ 0.25. Because the verifier is trained on out-of-fold candidates, it learns which kinds of
-detection the networks get wrong, such as faint fragments, limb features and doubled outlines.
+**Small-filament specialists (FZ only).** Downsampling to 1024 loses faint, thin, small filaments.
+These are most of what the base networks miss.
+- Each ConvNeXt fold network is fine-tuned on **native-resolution** 768-px crops. Half of the crops
+  are centred on a small filament, and the loss puts extra weight on small filaments.
+- The 5 specialists predict the full 2048 frame, with 8 views.
+- Their mean map is averaged 50/50 with the base map.
 
-Each kept candidate is finally re-outlined: among nested threshold levels of the same map, it takes
-the outline with the highest expected IoU. Growth stays inside the candidate's Voronoi territory,
-so instances remain disjoint.
+**Candidates.** The (fused) map is thresholded at 0.4 and split into connected candidates of at least
+150 px.
+
+**Verifier.** It decides which candidates to keep:
+- Inputs: 46 image-only features plus the score of a crop CNN.
+- Model: a bagged gradient-boosting model that predicts u, the IoU a candidate is expected to have
+  with an annotator's filament (0 if unmatched). A candidate is kept when u ≥ 0.25.
+- It is trained on out-of-fold candidates, so it learns which kinds of detection the networks get
+  wrong, such as faint fragments, limb features and doubled outlines.
+- FZ has its own verifier, retrained on fused-map candidates.
+
+**Outline.** Each kept candidate is re-outlined: among nested threshold levels of the same map, it
+takes the outline with the highest expected IoU. Growth stays inside the candidate's Voronoi
+territory, so instances remain disjoint.
 
 ## Quick start
 
@@ -41,73 +57,124 @@ pip install -r requirements.txt               # CPU build of PyTorch 2.11 (what 
 kaggle competitions download -c filament-segmentation-2026 -p data
 unzip -q data/filament-segmentation-2026.zip -d data   # -> data/MAGFiLO_1.0_Kaggle_2026/
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/pipeline_demo.ipynb
-# or just the submission:
-python -m filament_seg --output outputs/submission.csv
+# or just a submission file:
+python -m filament_seg --output outputs/submission.csv               # FZ_nz1
+python -m filament_seg --lite --output outputs/submission_lite.csv   # lite
 ```
 
-Set `FILAMENT_DATA_ROOT=/path/to/MAGFiLO_1.0_Kaggle_2026` if the data lives elsewhere.
+Set `FILAMENT_DATA_ROOT=/path/to/MAGFiLO_1.0_Kaggle_2026` if the data lives elsewhere. For a quick look
+on a CPU, set `FILAMENT_DEMO_MAX_FRAMES=3` before running the notebook.
 
 - **GPU:** install the CUDA build of `torch==2.11.0`/`torchvision==0.26.0` instead of the `+cpu`
   pins. `inference.device: auto` then uses the GPU.
 - **macOS:** drop the `+cpu` suffix.
 
-## Runtime and hardware (measured)
+## The two modes: score and runtime
 
-Measured on a CPU-only machine:
-- 8 vCPUs (AMD EPYC Genoa), 16 GB RAM, no GPU
-- Python 3.13.5, PyTorch 2.11 CPU build
+**FZ_nz1 (default)**
+- Networks per frame: 5 ConvNeXt + 5 ResNet34 at 1024², and 5 specialists at 2048², each with
+  8 views. Then 5 crop CNNs and a GBM.
+- Score: internal held-out PQ **+0.015** over lite (see Results); public leaderboard **0.39** (the same as lite at two decimals; one leaderboard step is about +0.012 internal PQ on only ~90 public images).
+- CPU: **238 s per frame** (236 s of it is the networks), about **12 h** for the 180 test frames. This is the median of the 10 spot-check frames.
+- GPU: not timed end to end for this repository. The logged GPU runs suggest about 15–20 s per frame,
+  under an hour for the test set. Those logs recorded per network:
+  - base ConvNeXt: about 1 s per frame on an H200
+  - ResNet34: about 0.6 s per frame on an H200
+  - specialist: about 1.7 s per frame on an A100
 
-Per test frame (median of 47 frames, 8 threads, machine not shared):
-- **total: 104 s**
-  - networks: 102 s (10 U-Nets × 8 TTA views at 1024²)
-  - everything after them: about 3 s (candidates, features, crop CNNs, GBM, outline and RLE encoding)
+  All of these were measured with several jobs sharing the GPU, and include writing maps to disk.
 
-Other figures:
-- **Whole test set (180 frames):** about 5.2 h on this CPU. The work is almost entirely network
-  inference, so a GPU shortens it to a small fraction of that; we did not time a GPU run for this
-  repository.
-- **Loading all 15 networks (10 U-Nets, 5 crop CNNs) and the GBM:** about 8 s.
-- **Peak memory:** 2–5 GB.
-- **Held-out evaluation in the notebook:** one fold model per family, about 40 s per frame.
-- **Cache:** results are cached per frame (`outputs/frames_*`), so an interrupted run resumes.
+**Lite (F_full_refit_nz1)**
+- Networks per frame: 5 ConvNeXt + 5 ResNet34 at 1024², each with 8 views. Then 5 crop CNNs and a GBM.
+- Score: public leaderboard **0.39**.
+- CPU: **104 s per frame**, about **5.2 h** for the 180 test frames.
+- GPU: about 8 s per frame by the same estimate (about 25 min for the test set); not timed end to end.
+
+CPU figures were measured on 8 vCPUs (AMD EPYC Genoa), 16 GB RAM, no GPU, Python 3.13.5 and
+PyTorch 2.11 (CPU build), with the machine not shared. They are medians per test frame.
+- **Where the time goes.** Almost everything is network inference. The rest takes about 3 s per
+  frame: candidates, features, crop CNNs, GBM, outline and RLE encoding.
+- **Peak memory.** About 3–5 GB. The specialists run one view at a time at 2048².
+- **Caching.** Results are cached per frame (`outputs/frames_*`), so an interrupted run resumes.
 
 ## Results
 
-**Leaderboard.** The submitted file scored **0.39** on the public leaderboard (PQ). It is in
-`reference/submission_F_full_refit_nz1.csv` (sha256 `df7e63f7…6c5e`, 1088 masks, 177 of the 180
-test frames have at least one).
+**Submitted files** (in `reference/`):
+- **FZ_nz1:** `submission_FZ_nz1.csv`, sha256 `8f07cb44…3410`, 1169 masks
+- **Lite:** `submission_F_full_refit_nz1.csv`, sha256 `df7e63f7…6c5e`, 1088 masks, public
+  leaderboard 0.39
+- In both, 177 of the 180 test frames have at least one mask.
 
-**Reproduction from this repository** (`notebooks/pipeline_demo.ipynb`, CPU):
-- **Masks.** We get the same 1088 masks, with the same IDs and order, and the same keep/reject
-  decision for every candidate. The 1088 masks cover 2.27 M pixels in total:
-  - 1046 masks (144 of 180 frames) are bit-identical
-  - 42 masks differ by 1–2 pixels each, 44 pixels in total, about 0.002% of all mask pixels
-- **Why the file hash differs.** The submitted maps were computed on an H200 GPU, and cuDNN
-  convolutions there use TF32 arithmetic. CPU float32 maps differ from them by at most about 0.0005
-  on the frames we checked, which is one float16 step. That is enough to move single pixels across the 0.4 threshold or the
-  outline levels.
-- **The post-network code is exact.** Fed the probability maps that the GPU run saved, this
-  repository's code reproduces the submitted file byte for byte: sha256 `df7e63f7…`, 180/180 frames.
-- **Verifier.** `train/train_gbm.py`, run on the same out-of-fold table, rebuilds the submitted GBM
-  with identical predictions.
-- **Why the weights are fp32.** We also tried storing the weights in fp16, which would halve the
-  repository. Rounding them to fp16 changed the masks of a test frame that fp32 reproduces exactly,
-  so we kept fp32 and split each network into shards under 95 MB.
+**Byte-exact reproduction of the submitted files.** We fed the probability maps saved by the GPU runs
+that produced each submission through this repository's code. It reproduces both files byte for
+byte: FZ sha `8f07cb44…`, lite sha `df7e63f7…`, 180/180 frames each. `train/train_gbm.py`, run on the
+same out-of-fold tables, rebuilds both GBM verifiers with identical predictions.
+
+**End-to-end on a CPU.**
+- **FZ, 10 test frames:** computed end to end, every 18th frame:
+  - The same 93 candidates, the same keep/reject decision for every one of them, and the same 69 masks.
+  - 1 of the 10 frames is bit-identical.
+  - 29 masks differ by 1–4 pixels each, 45 pixels in total out of 126 k mask pixels (0.04%).
+- **Lite, all 180 test frames:**
+  - The same 1088 masks, with the same IDs and order, and the same keep/reject decision for every
+    candidate.
+  - 1046 masks are bit-identical.
+  - 42 masks differ by 1–2 pixels each, 44 pixels in total out of 2.27 M mask pixels.
+
+**Why the hash differs on a CPU.** The submissions' maps were computed on GPUs. The base networks ran
+in TF32 there, and the specialists in bf16. CPU arithmetic differs at the level of one float16 step
+(or one uint8 level for the specialists), which is enough to move single pixels across a threshold.
 
 **Held-out labelled frames** (notebook section 6): 142 frames of fold 0 and 236 annotator records,
-using only models that never saw these frames. This is a single-fold pipeline, so it slightly
-understates the 5-model ensemble. The metric is the host's PQ.
+using only models that never saw these frames. These are single-fold pipelines, so they slightly
+understate the 5-model ensembles. The metric is the host's PQ.
 
+**FZ (default):**
+- All candidates: PQ 0.436 (TP 1185, FP 900, FN 448)
+- After the verifier: PQ 0.481
+- After the verifier and the nz1 outline (final): PQ **0.483** (SQ 0.688, RQ 0.702)
+
+**Lite:**
 - All candidates: PQ 0.424 (TP 1118, FP 810, FN 515)
-- After the verifier: PQ 0.461 (TP 1028, FP 367, FN 605)
+- After the verifier: PQ 0.461
 - After the verifier and the nz1 outline (final): PQ **0.464** (SQ 0.681, RQ 0.682)
 
-**Development protocol.** The same recipe was trained on 531 frames and scored once on 80
-untouched frames, giving PQ **0.457**. The previous pipeline scored 0.423 on those frames
-(paired month-block 95% CI of the gain: +0.017 to +0.055).
+**FZ − lite: +0.019 PQ on these frames.** Recall of GT filaments under 1000 px rose from 0.526
+to 0.595, and recall of larger ones from 0.711 to 0.732.
 
-**Context.** On frames labelled by two annotators, one annotator scored against the other reaches
-a PQ of about 0.34. Public leaderboard scores have run at about 0.86× our internal PQ.
+**Development protocol.**
+- **Lite.** The recipe was trained on 531 frames and scored once on 80 untouched frames: PQ
+  **0.457**. The previous pipeline scored 0.423 there (paired month-block 95% CI of the gain: +0.017
+  to +0.055).
+- **FZ.** It was pre-registered and assessed once on the same 80 frames: PQ **0.474**, a gain of
+  **+0.015** over lite (95% CI +0.006 to +0.025). The gain is positive in all 14 leave-one-month-out
+  subsets. It was also positive on the out-of-fold training frames (+0.014) and on the calibration
+  frames (+0.011).
+- **Where the FZ gain comes from.** Recall of small GT filaments (< 1000 px) rose from 0.53 to 0.60.
+
+**Context.** On frames labelled by two annotators, one annotator scored against the other reaches a
+PQ of about 0.34. Public leaderboard scores have run at about 0.86× our internal PQ.
+
+## Weights
+
+All weight files are under 95 MB, so no Git LFS is needed.
+
+- **U-Nets** (15 networks): fp32 safetensors, 2 shards each:
+  - ConvNeXt `cnx_fold*`
+  - ResNet34 `r34_fold*`
+  - specialists `spec_fold*`
+- **Crop CNNs** `crop_cnn_fold*` (lite) and `crop_cnn_fz_fold*` (FZ):
+  - They only run under bf16 autocast, which rounds their conv/linear weights to bf16 on every call.
+  - Those tensors are therefore stored in bf16; this is lossless for the computation (the byte-exact
+    checks above use these files).
+  - BatchNorm tensors stay fp32.
+- **GBM verifiers**, as gzip pickles:
+  - `verifier_gbm.pkl.gz` (lite) and `verifier_gbm_fz.pkl.gz` (FZ)
+  - the fold-0-excluded copies used by the held-out evaluation
+- **`manifest.json`:** a SHA-256 of every reassembled model, checked on load.
+
+We also tried storing the U-Nets in fp16. That changed the masks of a test frame that fp32
+reproduces exactly, so the U-Nets stay fp32.
 
 ## Repository map
 
@@ -116,7 +183,7 @@ filament_seg/            the inference package (one module per stage)
   config.py              YAML config loading; all paths relative to the repo root
   data.py                image discovery, preprocessing, ground-truth loading
   models.py              ConvNeXt-T U-Net, ResNet34 U-Net, crop CNN; sharded weight loading + hash check
-  inference.py           8-view TTA, fold ensembling, upsampling to 2048
+  inference.py           8-view TTA, fold ensembling, specialists at 2048 and map fusion
   candidates.py          connected-component candidates (fg >= 0.4, area >= 150, holes filled)
   features.py            the 46 verifier features
   verifier.py            crop extraction, crop-CNN scores, bagged GBM, keep decision
@@ -125,16 +192,15 @@ filament_seg/            the inference package (one module per stage)
   metrics.py             host's PQ, IoU/Dice distributions, 1:n / n:1 relations
   pipeline.py            frame-level pipeline + resumable directory runner
   viz.py                 plots and overlays
-  __main__.py            command line: python -m filament_seg
+  __main__.py            command line: python -m filament_seg [--lite]
 configs/
-  f_full_refit_nz1.yaml  every setting of the submitted pipeline
+  fz_nz1.yaml            every setting of the default FZ_nz1 pipeline
+  f_lite.yaml            the lite pipeline (F_full_refit_nz1)
   folds_full.json        calendar-month folds of the 707 labelled frames
-weights/                 28 files, 1.47 GB (all < 95 MB, no Git LFS): 10 U-Nets as fp32 safetensors
-                         (2 shards each), 5 crop CNNs, the GBM verifier (+ fold-0-excluded copy),
-                         manifest.json with per-model SHA-256
+weights/                 44 weight files + manifest.json, 2.08 GB, all < 95 MB (see Weights)
 notebooks/pipeline_demo.ipynb   the end-to-end demo (executed)
 train/                   scripts that produced the weights (see train/README.md)
-reference/               the CSV we submitted (for the reproduction check)
+reference/               the two submitted CSVs (for the reproduction checks)
 tests/                   fast data-free unit tests
 ```
 

@@ -13,7 +13,8 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = REPO_ROOT/'configs'/'f_full_refit_nz1.yaml'
+DEFAULT_CONFIG = REPO_ROOT/'configs'/'fz_nz1.yaml'
+LITE_CONFIG = REPO_ROOT/'configs'/'f_lite.yaml'
 
 
 def load_config(path: str | Path = DEFAULT_CONFIG, overrides: dict | None = None) -> dict:
