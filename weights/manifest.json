@@ -18,6 +18,7 @@
    "inner_sources": 58,
    "precision": "bf16 autocast",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 68
   }
  },
@@ -40,6 +41,7 @@
    "inner_sources": 59,
    "precision": "bf16 autocast",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 89
   }
  },
@@ -62,6 +64,7 @@
    "inner_sources": 60,
    "precision": "bf16 autocast",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 94
   }
  },
@@ -84,6 +87,7 @@
    "inner_sources": 56,
    "precision": "bf16 autocast",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 91
   }
  },
@@ -106,6 +110,7 @@
    "inner_sources": 56,
    "precision": "bf16 autocast",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 74
   }
  },
@@ -129,6 +134,7 @@
    "inner_sources": 58,
    "precision": "bf16 autocast, fp32 loss/weights",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 11
   }
  },
@@ -152,6 +158,7 @@
    "inner_sources": 59,
    "precision": "bf16 autocast, fp32 loss/weights",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 7
   }
  },
@@ -175,6 +182,7 @@
    "inner_sources": 60,
    "precision": "bf16 autocast, fp32 loss/weights",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 11
   }
  },
@@ -198,6 +206,7 @@
    "inner_sources": 56,
    "precision": "bf16 autocast, fp32 loss/weights",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 10
   }
  },
@@ -221,6 +230,7 @@
    "inner_sources": 56,
    "precision": "bf16 autocast, fp32 loss/weights",
    "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
    "selected_epoch": 11
   }
  },
@@ -229,9 +239,9 @@
   "files": [
    "crop_cnn_fold0.safetensors"
   ],
-  "state_sha256": "b7bcbc61fc293cb6917ead244e6a312a7573c42be1bd648f055a07607545f503",
+  "state_sha256": "5152762bf3573f90a9316cc515501fe50bf62f23b5d5cbea5585d497df1a1c49",
   "source_checkpoint_sha256": "8a9c495299c1c34070775f3548b74522ddf9daafb0b7dbe515374afedfd3f080",
-  "dtype": "float32",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
   "fold": 0
  },
  "crop_cnn_fold1": {
@@ -239,9 +249,9 @@
   "files": [
    "crop_cnn_fold1.safetensors"
   ],
-  "state_sha256": "7f277e9579ed3593b27a3460aea3641df08975bdbf326b8661c1391462424cf7",
+  "state_sha256": "b4afb38918542a01836458ab4d41106ee23e29181f81ff6442510b7c1d3455f8",
   "source_checkpoint_sha256": "cf408ebfe8538c08ed99b452b012c49b6dfe1ff02133046b9689e25d9b5cabe4",
-  "dtype": "float32",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
   "fold": 1
  },
  "crop_cnn_fold2": {
@@ -249,9 +259,9 @@
   "files": [
    "crop_cnn_fold2.safetensors"
   ],
-  "state_sha256": "1c34d257654e4858aaa45f929a56a551e51158a0710b59046282f030aa1f2282",
+  "state_sha256": "00774cecc2b20fb60ddf8969f953109198b374848121fef60a28398d143c60b4",
   "source_checkpoint_sha256": "3b170ef8095ba74e0e655c4d8b9c9de267de2987c2bcdfb49fe6d6de6a14ef8a",
-  "dtype": "float32",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
   "fold": 2
  },
  "crop_cnn_fold3": {
@@ -259,9 +269,9 @@
   "files": [
    "crop_cnn_fold3.safetensors"
   ],
-  "state_sha256": "c95cbd645fa36393dfbbe102c871faea8f02aa4395c22277d25f1f87050aa53c",
+  "state_sha256": "15831711ecd2cee191d0de0b970bdd73ed5cd9636c4fa692ac569aa3a23891b5",
   "source_checkpoint_sha256": "29e7ba6d8a68c76ff7841c3c14b2019517b093e8425f44af27f47799eda8ccb6",
-  "dtype": "float32",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
   "fold": 3
  },
  "crop_cnn_fold4": {
@@ -269,25 +279,216 @@
   "files": [
    "crop_cnn_fold4.safetensors"
   ],
-  "state_sha256": "897080c623362160f2edfd0568f73baeb16db62160af452cc3f33e77298577db",
+  "state_sha256": "bddd00f4fa6300cf69daac07522e68e88c6bc275de6c6c9b5bbecc4ca98466cb",
   "source_checkpoint_sha256": "58697c6bd439082afb972b39b921e318671de1269b37a4608e7e272ae5192891",
-  "dtype": "float32",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
   "fold": 4
  },
- "verifier_gbm.pkl": {
-  "architecture": "bagged sklearn HistGradientBoostingRegressor (pickle)",
+ "spec_fold0": {
+  "architecture": "ConvNeXtUNet",
   "files": [
-   "verifier_gbm.pkl"
+   "spec_fold0.part1of2.safetensors",
+   "spec_fold0.part2of2.safetensors"
   ],
-  "sha256": "571da1b4b8884ffcac2f2e7ed123bd2cc284485e6c63866cd6321f45272918f9",
+  "state_sha256": "dc839c3cccb8883f8f603387e7b5afe83b9be5bd9d71f90c60df5c375b013855",
+  "source_checkpoint_sha256": "b4530312c589b2d7bd10b2fece0c51e91c335836f7c1f09b34dd5c79c2990c96",
+  "dtype": "float32",
+  "fold": 0,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 0,
+   "seed": 700,
+   "epochs": 12,
+   "train_sources": 494,
+   "inner_sources": 58,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 2048,
+   "crop": 768,
+   "small_w": 3.0,
+   "init_sha256": "67b449c9bd2134dab618293cfd46e4ed6e3d56f864585e8fa35620a84a80a9ba",
+   "selected_epoch": 11
+  }
+ },
+ "spec_fold1": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "spec_fold1.part1of2.safetensors",
+   "spec_fold1.part2of2.safetensors"
+  ],
+  "state_sha256": "52a79d4a2e500a98f4f93307946e666c25514d1399971ed998c7b5b5b64aa76a",
+  "source_checkpoint_sha256": "7ce49e87845a7ab823218a00ce11bee4738279c259ffcaa9196917bd7cf9d5c0",
+  "dtype": "float32",
+  "fold": 1,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 1,
+   "seed": 701,
+   "epochs": 12,
+   "train_sources": 497,
+   "inner_sources": 59,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 2048,
+   "crop": 768,
+   "small_w": 3.0,
+   "init_sha256": "cca627d75ce87c04bee3f11e41e329a5d0a48ba88834e84fbb54110a6a7eefca",
+   "selected_epoch": 11
+  }
+ },
+ "spec_fold2": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "spec_fold2.part1of2.safetensors",
+   "spec_fold2.part2of2.safetensors"
+  ],
+  "state_sha256": "68cef42fcfc83cf05660e460dfe2035824a815ee667f6a79a53c11ac33d947d2",
+  "source_checkpoint_sha256": "3dbaf96ff4f2363189bb089bd52bc2a5670363c6e2efeeef3a3b8f9d7543917e",
+  "dtype": "float32",
+  "fold": 2,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 2,
+   "seed": 702,
+   "epochs": 12,
+   "train_sources": 491,
+   "inner_sources": 60,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 2048,
+   "crop": 768,
+   "small_w": 3.0,
+   "init_sha256": "99cd009918ff84da97a8347af013144f907221b1324faa1816ee4c3eead24f6b",
+   "selected_epoch": 11
+  }
+ },
+ "spec_fold3": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "spec_fold3.part1of2.safetensors",
+   "spec_fold3.part2of2.safetensors"
+  ],
+  "state_sha256": "da95701b2c19c09ece502a71d55e207d1cd041c02e5f4c625dff256212b43757",
+  "source_checkpoint_sha256": "1754bfcf45c9c8e6bce9ea4909c954f19f91f854b247f635367e0e8cc3cc61f1",
+  "dtype": "float32",
+  "fold": 3,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 3,
+   "seed": 703,
+   "epochs": 12,
+   "train_sources": 502,
+   "inner_sources": 56,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 2048,
+   "crop": 768,
+   "small_w": 3.0,
+   "init_sha256": "19f203688e02d31c2156c59a6319440d15c9326b04be85b6051e5e27c1053b2c",
+   "selected_epoch": 11
+  }
+ },
+ "spec_fold4": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "spec_fold4.part1of2.safetensors",
+   "spec_fold4.part2of2.safetensors"
+  ],
+  "state_sha256": "d9203c760719fd9a4ecbc90bd4d8d39f50fa1010454a35f07d6d43d42e6b041c",
+  "source_checkpoint_sha256": "f3cc7e502fe00f3e42f619a139db83c1116f7392a4ec20ecd893908b6901c405",
+  "dtype": "float32",
+  "fold": 4,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 4,
+   "seed": 704,
+   "epochs": 12,
+   "train_sources": 502,
+   "inner_sources": 56,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 2048,
+   "crop": 768,
+   "small_w": 3.0,
+   "init_sha256": "ad86e697958c25cd1a1d38dbe1cc7e83c2617a6b5cc6035be5b8a5a07a7d9121",
+   "selected_epoch": 11
+  }
+ },
+ "crop_cnn_fz_fold0": {
+  "architecture": "CropVerifierCNN",
+  "files": [
+   "crop_cnn_fz_fold0.safetensors"
+  ],
+  "state_sha256": "c25a44b0c8ada89fb721756429502cdfd27adc0a01ed9d0ebfaa8997d5dc9591",
+  "source_checkpoint_sha256": "44537bdd8cca60f7f01d646054b2d53c07ed3aa60cc4c023749cf6d1d0c64f13",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 0
+ },
+ "crop_cnn_fz_fold1": {
+  "architecture": "CropVerifierCNN",
+  "files": [
+   "crop_cnn_fz_fold1.safetensors"
+  ],
+  "state_sha256": "cab7db10b0302de0f9538475825c562b60a0b060ac1b20285beb4c4bf0df64e0",
+  "source_checkpoint_sha256": "ab34dbe293dc03fd13b0fe9669e96ebaa76efd732786739ddd64fc8b0a36c1f9",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 1
+ },
+ "crop_cnn_fz_fold2": {
+  "architecture": "CropVerifierCNN",
+  "files": [
+   "crop_cnn_fz_fold2.safetensors"
+  ],
+  "state_sha256": "28ab313cb8b35fd29bee63389a179f195e3e6d4c5e7d9bbdbead2ab42e61d04b",
+  "source_checkpoint_sha256": "e5669ede5cc864806de4b06b1dd60d0aabc578f0fe7e564c4f5559c5c83f8c51",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 2
+ },
+ "crop_cnn_fz_fold3": {
+  "architecture": "CropVerifierCNN",
+  "files": [
+   "crop_cnn_fz_fold3.safetensors"
+  ],
+  "state_sha256": "0d002756cb78deecb9d90b1f6be1b8a501feefb2928073a636ed6bd46df1d557",
+  "source_checkpoint_sha256": "20661bb39af95dd5abe4fe4b464ce26bfff57f0585bccb93a9f6b4fa111ed76c",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 3
+ },
+ "crop_cnn_fz_fold4": {
+  "architecture": "CropVerifierCNN",
+  "files": [
+   "crop_cnn_fz_fold4.safetensors"
+  ],
+  "state_sha256": "0cc260cca1d95fe9d22434c143984393b563973a096c172ae1b7398b7cb9b5b3",
+  "source_checkpoint_sha256": "bc306354556db3470b90b38198872a5cf6ef1e2f60ea1d356931725ddd1d1a1f",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 4
+ },
+ "verifier_gbm.pkl.gz": {
+  "architecture": "bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "verifier_gbm.pkl.gz"
+  ],
+  "sha256": "cd965ae04b8a21a725a7d1e6f00925121866b506e3a991a874c89e995d87314f",
   "source_sha256": "571da1b4b8884ffcac2f2e7ed123bd2cc284485e6c63866cd6321f45272918f9"
  },
- "verifier_gbm_without_fold0.pkl": {
-  "architecture": "bagged sklearn HistGradientBoostingRegressor (pickle)",
+ "verifier_gbm_fz.pkl.gz": {
+  "architecture": "bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
   "files": [
-   "verifier_gbm_without_fold0.pkl"
+   "verifier_gbm_fz.pkl.gz"
   ],
-  "sha256": "e51f75e9e2e0fc8b5df24186da68d5fc3dc673b3c5b3fb05bcc17b9ed299b6ea",
+  "sha256": "b14eb0fd1e48a65a62c3d38b56174ffe4a023115fc4e866f25834c12b75f317b",
+  "source_sha256": "98ce0875b1bbe7e9a37a4e5722ca9d135bbd5f8980d471e109c91a08e9e4f6bf"
+ },
+ "verifier_gbm_without_fold0.pkl.gz": {
+  "architecture": "bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "verifier_gbm_without_fold0.pkl.gz"
+  ],
+  "sha256": "3e3024a9c00c0ed69c2c29d42b63793606c85206f7ddc9707c9b869ed7a3dc94",
   "source_sha256": "e51f75e9e2e0fc8b5df24186da68d5fc3dc673b3c5b3fb05bcc17b9ed299b6ea"
+ },
+ "verifier_gbm_fz_without_fold0.pkl.gz": {
+  "architecture": "bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "verifier_gbm_fz_without_fold0.pkl.gz"
+  ],
+  "sha256": "a64a68a46e117ac8ec2f6320bbf824777589eee65a44d7f16e690e9d2c286a92",
+  "source_sha256": "1ce5229d262b909d4c96cc7979c0316d5b45708b3e77c02d70580ae494d1d778"
  }
 }
