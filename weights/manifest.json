@@ -490,5 +490,291 @@
   ],
   "sha256": "a64a68a46e117ac8ec2f6320bbf824777589eee65a44d7f16e690e9d2c286a92",
   "source_sha256": "1ce5229d262b909d4c96cc7979c0316d5b45708b3e77c02d70580ae494d1d778"
+ },
+ "l2_fold0": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "l2_fold0.safetensors"
+  ],
+  "state_sha256": "50786c6a12e8d71e32bcd66748ae48ad17f1ca74f62c46d0027f07c6caadc38b",
+  "source_checkpoint_sha256": "eb2391daa6e07895457e6470fd1e5c36efeeada5d0230ce380e54fd7326bbd7a",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 0,
+  "in_chans": 3,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 0,
+   "seed": 71,
+   "epochs": 40,
+   "train_sources": 494,
+   "inner_sources": 58,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
+   "selected_epoch": 39
+  },
+  "inputs": [
+   "frame input (1024)",
+   "ConvNeXt segmenter fold k D4 foreground (uint8)",
+   "ResNet34 voter fold k D4 foreground (uint8)"
+  ]
+ },
+ "l2_fold1": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "l2_fold1.safetensors"
+  ],
+  "state_sha256": "7a2793d0126d4890224add539d35e98c71d50e5a3428e81eaf482e699fca870f",
+  "source_checkpoint_sha256": "39a11531cc66ddf35dc142fe1881cb67e11062b2c9de430abfaea18791a8622e",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 1,
+  "in_chans": 3,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 1,
+   "seed": 72,
+   "epochs": 40,
+   "train_sources": 497,
+   "inner_sources": 59,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
+   "selected_epoch": 39
+  },
+  "inputs": [
+   "frame input (1024)",
+   "ConvNeXt segmenter fold k D4 foreground (uint8)",
+   "ResNet34 voter fold k D4 foreground (uint8)"
+  ]
+ },
+ "l2_fold2": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "l2_fold2.safetensors"
+  ],
+  "state_sha256": "c8bd040ccb89d58257f21b3d62c23fcf61437a20784fd665b61df2e8d72afa66",
+  "source_checkpoint_sha256": "13754e61756cab4bd8847bb8465e14304a85cc7c45ac8b7816d30c9be2820029",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 2,
+  "in_chans": 3,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 2,
+   "seed": 73,
+   "epochs": 40,
+   "train_sources": 491,
+   "inner_sources": 60,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
+   "selected_epoch": 39
+  },
+  "inputs": [
+   "frame input (1024)",
+   "ConvNeXt segmenter fold k D4 foreground (uint8)",
+   "ResNet34 voter fold k D4 foreground (uint8)"
+  ]
+ },
+ "l2_fold3": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "l2_fold3.safetensors"
+  ],
+  "state_sha256": "376c0091acf62f73d2faf5878770798ed3de1cb0031eac6e5577063d7169348f",
+  "source_checkpoint_sha256": "6ae2eaff0b774c4b8580be3fd007f6f657750ccd6b2ac024e28c81519cb1aea9",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 3,
+  "in_chans": 3,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 3,
+   "seed": 74,
+   "epochs": 40,
+   "train_sources": 502,
+   "inner_sources": 56,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
+   "selected_epoch": 39
+  },
+  "inputs": [
+   "frame input (1024)",
+   "ConvNeXt segmenter fold k D4 foreground (uint8)",
+   "ResNet34 voter fold k D4 foreground (uint8)"
+  ]
+ },
+ "l2_fold4": {
+  "architecture": "ConvNeXtUNet",
+  "files": [
+   "l2_fold4.safetensors"
+  ],
+  "state_sha256": "cd4f97306b86cd599e3914b7f33c8f981154b8c714e1bab0dfadaf9402437d22",
+  "source_checkpoint_sha256": "a4462d0912470ff6f5f63eccf773c73e8e8161804c3191f2eb6d5bd4b4754ce0",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 4,
+  "in_chans": 3,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "fold": 4,
+   "seed": 75,
+   "epochs": 40,
+   "train_sources": 502,
+   "inner_sources": 56,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "side": 1024,
+   "selected_epoch": 39
+  },
+  "inputs": [
+   "frame input (1024)",
+   "ConvNeXt segmenter fold k D4 foreground (uint8)",
+   "ResNet34 voter fold k D4 foreground (uint8)"
+  ]
+ },
+ "refiner_fold0": {
+  "architecture": "RefineUNet",
+  "files": [
+   "refiner_fold0.safetensors"
+  ],
+  "state_sha256": "830c2f450a0b9ddac92653ae4cd1d0b310385778a1409e76f9aa4799b1ce70ee",
+  "source_checkpoint_sha256": "6f723bcfeade0b7724cf1f0595c5068ce61d44c830f10981bc1112913a789f40",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 0,
+  "in_chans": 4,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "world": "full",
+   "fold": 0,
+   "seed": 9000,
+   "epochs": 40,
+   "trunc_p": 0.3,
+   "tbar": 0.2,
+   "lr": 0.0003,
+   "ema": 0.998,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "best_epoch": 16,
+   "trainer": "d2refine2_train.py",
+   "train_sources": 494,
+   "inner_sources": 58
+  }
+ },
+ "refiner_fold1": {
+  "architecture": "RefineUNet",
+  "files": [
+   "refiner_fold1.safetensors"
+  ],
+  "state_sha256": "42b277afd7253b4d7bcd6eb6f7d545403d68e5cadc0140bf3ffb6bb1c9707ea4",
+  "source_checkpoint_sha256": "6bef3c83d943294654d852fd542f65438d0b417c401ba1982821aa47c6fe3921",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 1,
+  "in_chans": 4,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "world": "full",
+   "fold": 1,
+   "seed": 9001,
+   "epochs": 40,
+   "trunc_p": 0.3,
+   "tbar": 0.2,
+   "lr": 0.0003,
+   "ema": 0.998,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "best_epoch": 22,
+   "trainer": "d2refine2_train.py",
+   "train_sources": 497,
+   "inner_sources": 59
+  }
+ },
+ "refiner_fold2": {
+  "architecture": "RefineUNet",
+  "files": [
+   "refiner_fold2.safetensors"
+  ],
+  "state_sha256": "5eee46e5bc98198fe3f8bb326404c4bb890d81b70a9876530b9f19d06c3cadf5",
+  "source_checkpoint_sha256": "b6a495e729c7a3fc0ec8377e346040bb56b26ad14d9f4fb1112d461a737ebbb5",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 2,
+  "in_chans": 4,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "world": "full",
+   "fold": 2,
+   "seed": 9002,
+   "epochs": 40,
+   "trunc_p": 0.3,
+   "tbar": 0.2,
+   "lr": 0.0003,
+   "ema": 0.998,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "best_epoch": 17,
+   "trainer": "d2refine2_train.py",
+   "train_sources": 491,
+   "inner_sources": 60
+  }
+ },
+ "refiner_fold3": {
+  "architecture": "RefineUNet",
+  "files": [
+   "refiner_fold3.safetensors"
+  ],
+  "state_sha256": "1eb507ebb4ce23667f5fec086032d14e50b821de4835219a0003dc21f6fa8f5c",
+  "source_checkpoint_sha256": "05fbeaf15711ebf0b6488493d2430b8c4d523b931c29bd91bbd2263e0e08fe7b",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 3,
+  "in_chans": 4,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "world": "full",
+   "fold": 3,
+   "seed": 9003,
+   "epochs": 40,
+   "trunc_p": 0.3,
+   "tbar": 0.2,
+   "lr": 0.0003,
+   "ema": 0.998,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "best_epoch": 17,
+   "trainer": "d2refine2_train.py",
+   "train_sources": 502,
+   "inner_sources": 56
+  }
+ },
+ "refiner_fold4": {
+  "architecture": "RefineUNet",
+  "files": [
+   "refiner_fold4.safetensors"
+  ],
+  "state_sha256": "b645dd69b31ea527a6e2f8c531614af14f9f1ddd1f60a8bd0e44cb7dad029826",
+  "source_checkpoint_sha256": "44d71d793853adfd0c668231883cf156cc6235c1d4bf973877b0a7be73762448",
+  "dtype": "conv/linear tensors bf16 (run under bf16 autocast), rest fp32",
+  "fold": 4,
+  "in_chans": 4,
+  "encoder": "convnext_tiny.fb_in22k_ft_in1k",
+  "training": {
+   "world": "full",
+   "fold": 4,
+   "seed": 9004,
+   "epochs": 40,
+   "trunc_p": 0.3,
+   "tbar": 0.2,
+   "lr": 0.0003,
+   "ema": 0.998,
+   "folds_sha256": "a753f8ee366234f0ff841d82c3dd4f695dd01335b4af9bd5c33f8ea5f5c99525",
+   "best_epoch": 17,
+   "trainer": "d2refine2_train.py",
+   "train_sources": 502,
+   "inner_sources": 56
+  }
+ },
+ "keep_gbm_y4.pkl.gz": {
+  "architecture": "keep model: bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "keep_gbm_y4.pkl.gz"
+  ],
+  "sha256": "c6e8df5c08316888e6b9f3d5696ea34a969313fd2a053949fb7f14e5bea3db41",
+  "source_sha256": "ceb3a3210de022ccb23d5189a1fba1c69dfa0485afe4d6d2b6e192ff94f45a62"
+ },
+ "keep_gbm_dv.pkl.gz": {
+  "architecture": "keep model: bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "keep_gbm_dv.pkl.gz"
+  ],
+  "sha256": "06567c180c368bbe37ff28097fa98a318f9ee9942422389524912e3bdccce6f1",
+  "source_sha256": "564772fa053b4077844242bf24ab9eed2f2bda0c33d622a77a9a2fc2713a4131"
  }
 }

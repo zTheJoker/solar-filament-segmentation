@@ -7,8 +7,12 @@
   only feed the verifier's "vote" features.
 * ``CropVerifierCNN`` - ResNet18 on 5-channel 128x128 crops around a
   candidate, plus log crop size; predicts the candidate's expected IoU share.
+* ``ConvNeXtUNet(in_chans=3)`` - the context networks of the final pipeline
+  (grayscale + ConvNeXt map + ResNet34 map in, two planes out).
+* ``RefineUNet`` - the instance refiner of the final pipeline (rotated
+  native-resolution crops, one probability plane out).
 
-Both U-Nets output two logit planes: filament foreground and instance boundary.
+The segmentation U-Nets output two logit planes: filament foreground and instance boundary.
 
 Weights live in ``weights/`` as safetensors shards (GitHub refuses files over
 100 MB). ``weights/manifest.json`` lists the shards of every model and a
@@ -44,13 +48,17 @@ class GNBlock(nn.Sequential):
 
 
 class ConvNeXtUNet(nn.Module):
-    """ConvNeXt-T U-Net with stride-1 and stride-2 shallow skips; output (B, 2, H, W) logits."""
+    """ConvNeXt-T U-Net with stride-1 and stride-2 shallow skips; output (B, 2, H, W) logits.
 
-    def __init__(self, encoder='convnext_tiny.fb_in22k_ft_in1k', pretrained=False):
+    ``in_chans`` is 1 for the segmenters and specialists (grayscale) and 3 for the context networks
+    (grayscale + two probability maps, see ``context.py``).
+    """
+
+    def __init__(self, encoder='convnext_tiny.fb_in22k_ft_in1k', pretrained=False, in_chans=1):
         super().__init__()
-        self.encoder = timm.create_model(encoder, pretrained=pretrained, features_only=True, in_chans=1)
+        self.encoder = timm.create_model(encoder, pretrained=pretrained, features_only=True, in_chans=in_chans)
         c = self.encoder.feature_info.channels()  # 96, 192, 384, 768 at strides 4, 8, 16, 32
-        self.s1 = GNBlock(1, 16)
+        self.s1 = GNBlock(in_chans, 16)
         self.s2 = nn.Sequential(nn.Conv2d(16, 32, 3, stride=2, padding=1, bias=False), nn.GroupNorm(8, 32), nn.GELU(),
                                 GNBlock(32, 32))
         self.d3 = GNBlock(c[3]+c[2], 256)
@@ -127,7 +135,46 @@ class CropVerifierCNN(nn.Module):
         return self.head(torch.cat([self.body(x), log_side[:, None]], 1))
 
 
-ARCHITECTURES = {'ConvNeXtUNet': ConvNeXtUNet, 'ResNet34UNet': ResNet34UNet, 'CropVerifierCNN': CropVerifierCNN}
+class RefineUNet(nn.Module):
+    """Instance refiner: ConvNeXt-T encoder (4-channel stem) + U-Net decoder; one logit map at input resolution.
+
+    Input channels: grayscale, fused probability map, the candidate's own mask (seed) and the other candidates
+    weighted by their verifier score (see ``refiner.py``). Stride-1 and stride-2 convolution branches on the raw
+    input feed the last decoder stages, so 3-6 px wide filaments are not decided at reduced resolution.
+    """
+
+    def __init__(self, encoder='convnext_tiny.fb_in22k_ft_in1k', pretrained=False, in_chans=4):
+        super().__init__()
+        self.encoder = timm.create_model(encoder, pretrained=pretrained, features_only=True, in_chans=in_chans)
+        ch, red = self.encoder.feature_info.channels(), self.encoder.feature_info.reduction()
+        self.s1 = GNBlock(in_chans, 24)
+        self.has_s2 = min(red) > 2
+        if self.has_s2:
+            self.s2 = nn.Sequential(nn.Conv2d(24, 32, 3, stride=2, padding=1, bias=False), nn.GroupNorm(8, 32), nn.GELU(),
+                                    GNBlock(32, 32))
+        widths = [256, 128, 64, 48]
+        skips = list(reversed(ch[:-1]))+([32] if self.has_s2 else [])
+        dec, c = [], ch[-1]
+        for i, s in enumerate(skips):
+            w = widths[min(i, len(widths)-1)]
+            dec.append(GNBlock(c+s, w))
+            c = w
+        self.dec = nn.ModuleList(dec)
+        self.full = GNBlock(c+24, 32)
+        self.head = nn.Conv2d(32, 1, 1)
+
+    def forward(self, x):
+        f1 = self.s1(x)
+        feats = self.encoder(x)
+        skips = list(reversed(feats[:-1]))+([self.s2(f1)] if self.has_s2 else [])
+        z = feats[-1]
+        for block, s in zip(self.dec, skips):
+            z = block(_up_cat(z, s))
+        return self.head(self.full(_up_cat(z, f1)))
+
+
+ARCHITECTURES = {'ConvNeXtUNet': ConvNeXtUNet, 'ResNet34UNet': ResNet34UNet, 'CropVerifierCNN': CropVerifierCNN,
+                 'RefineUNet': RefineUNet}
 
 
 def state_dict_sha256(state: dict) -> str:
@@ -162,7 +209,9 @@ def load_state(name: str, weights_dir: str | Path) -> tuple[dict, dict]:
 def load_model(name: str, weights_dir: str | Path, device='cpu') -> nn.Module:
     """Build the architecture named in the manifest, load its verified weights, return it in eval mode."""
     state, entry = load_state(name, weights_dir)
-    kwargs = {'encoder': entry['encoder']} if entry['architecture'] == 'ConvNeXtUNet' else {}
+    kwargs = {}
+    if entry['architecture'] in ('ConvNeXtUNet', 'RefineUNet'):
+        kwargs = {'encoder': entry['encoder'], 'in_chans': int(entry.get('in_chans', 1))}
     net = ARCHITECTURES[entry['architecture']](pretrained=False, **kwargs)
     net.load_state_dict(state, strict=True)
     return net.to(device).eval()

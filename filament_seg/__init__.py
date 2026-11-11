@@ -1,4 +1,4 @@
-"""Solar filament instance segmentation (Kaggle filament-segmentation-2026), pipeline F_full_refit_nz1."""
+"""Solar filament instance segmentation (Kaggle filament-segmentation-2026): the final pipeline and two earlier ones."""
 from .config import load_config
 from .pipeline import Pipeline, predict_frames
 

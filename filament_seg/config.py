@@ -13,7 +13,8 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = REPO_ROOT/'configs'/'fz_nz1.yaml'
+DEFAULT_CONFIG = REPO_ROOT/'configs'/'final.yaml'
+FZ_CONFIG = REPO_ROOT/'configs'/'fz_nz1.yaml'
 LITE_CONFIG = REPO_ROOT/'configs'/'f_lite.yaml'
 
 

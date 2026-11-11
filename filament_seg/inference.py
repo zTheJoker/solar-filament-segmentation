@@ -122,18 +122,31 @@ class EnsemblePredictor:
                    load(voters if voters is not None else w['voters']),
                    load(specialists if specialists is not None else w.get('specialists', [])), device)
 
-    def specialist_maps(self, gray: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Mean specialist foreground at native resolution: (identity view, D4 mean)."""
+    def specialist_fold_maps(self, gray: np.ndarray) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """Per-specialist uint8 foreground at native resolution: (identity views, D4 means), one entry per network."""
         x = torch.from_numpy(normalize_image(gray))[None, None].to(self.device)
         single, d4 = [], []
         for net in self.specialists:
             s, d = predict_tta(net, x, self.spec_batch, slice(0, 1), self.spec_autocast)
             single.append(np.round(s[0].numpy()*255).astype(np.uint8))
             d4.append(np.round(d[0].numpy()*255).astype(np.uint8))
+        return single, d4
+
+    def specialist_maps(self, gray: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Mean specialist foreground at native resolution: (identity view, D4 mean)."""
+        single, d4 = self.specialist_fold_maps(gray)
         return specialist_mean(single), specialist_mean(d4)
 
-    def __call__(self, image_path) -> dict[str, np.ndarray]:
-        x = torch.from_numpy(np.ascontiguousarray(model_input(image_path, self.side)))[None, None].to(self.device)
+    def __call__(self, image_path, keep_folds: bool = False) -> dict[str, np.ndarray]:
+        """Native maps of one frame. With ``keep_folds`` also the per-network maps the final pipeline needs:
+
+        * ``input``: the (S, S) network input of the frame
+        * ``cnx_folds`` / ``r34_folds``: per-fold D4 maps at model side, (2, S, S) float16 (context networks)
+        * ``fused_folds``: per-fold fused D4 foreground at 2048, ``(cnx_k upsampled + specialist_k) / 2`` rounded
+          through float16 (the input the refiner of fold k was trained with)
+        """
+        x_np = np.ascontiguousarray(model_input(image_path, self.side))
+        x = torch.from_numpy(x_np)[None, None].to(self.device)
         single, decode, vote = [], [], []
         for net in self.segmenters:
             s, d = predict_tta(net, x, self.view_batch)
@@ -142,8 +155,16 @@ class EnsemblePredictor:
         for net in self.voters:
             vote.append(predict_tta(net, x, self.view_batch)[1].numpy().astype(np.float16))
         maps = {'decode': to_native(decode), 'single': to_native(single), 'vote': to_native(vote)}
+        q_single = q_decode = None
         if self.specialists:
-            q_single, q_decode = self.specialist_maps(read_gray(image_path))
-            maps['decode'] = fuse(maps['decode'], q_decode, self.fusion_weight)
-            maps['single'] = fuse(maps['single'], q_single, self.fusion_weight)
+            q_single, q_decode = self.specialist_fold_maps(read_gray(image_path))
+            maps['decode'] = fuse(maps['decode'], specialist_mean(q_decode), self.fusion_weight)
+            maps['single'] = fuse(maps['single'], specialist_mean(q_single), self.fusion_weight)
+        if keep_folds:
+            maps['input'] = x_np
+            maps['cnx_folds'], maps['r34_folds'] = decode, vote
+            if q_decode is not None:
+                assert len(q_decode) == len(decode), 'per-fold fusion needs one specialist per segmenter'
+                maps['fused_folds'] = [fuse(to_native([d]), specialist_mean([q]), self.fusion_weight)[0]
+                                       for d, q in zip(decode, q_decode)]
         return maps

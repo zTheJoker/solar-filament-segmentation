@@ -6,7 +6,7 @@ State passed between steps (``InstanceState``):
   fg      native foreground map that produced the candidates
   gray    native 8-bit image
 
-Steps of the submitted pipeline (``configs/f_full_refit_nz1.yaml``):
+Steps of the FZ and lite pipelines (``configs/fz_nz1.yaml``, ``configs/f_lite.yaml``):
 
 1. ``outline_nz1`` - expected-IoU outline. The ensemble map approximates the
    annotator-mean probability that a pixel belongs to the filament, so for
@@ -19,6 +19,10 @@ Steps of the submitted pipeline (``configs/f_full_refit_nz1.yaml``):
    level each one chooses. The sums are evaluated on 20-bin histograms of p.
 2. ``drop_rejected`` - remove candidates the verifier rejected and renumber
    the rest 1..K in candidate order.
+
+The final pipeline (``configs/final.yaml``) runs ``outline_nz1`` on all candidates before the keep decision (the
+detector votes are measured on these outlines) and then replaces ``drop_rejected`` by the refiner paste-back
+(``pasteback.py``), which also drops the rejected candidates.
 
 To add a step (e.g. a fragment merge), write ``def step(state, **params) ->
 InstanceState``, register it in ``STEPS`` and list it in the config.
@@ -40,6 +44,7 @@ class InstanceState:
     keep: np.ndarray
     fg: np.ndarray
     gray: np.ndarray
+    choice: np.ndarray | None = None   # nz1 level index per candidate (set by outline_nz1)
 
 
 def territories(labels: np.ndarray, grow_px: int) -> np.ndarray:
@@ -101,7 +106,7 @@ def outline_nz1(state: InstanceState, levels, base_level=.4, grow_px=16, band_px
         view = out[box]
         assert not (view[masks[c]] > 0).any(), 'outlines must stay disjoint'
         view[masks[c]] = j
-    return replace(state, labels=out)
+    return replace(state, labels=out, choice=choice)
 
 
 def drop_rejected(state: InstanceState) -> InstanceState:
@@ -117,11 +122,17 @@ def drop_rejected(state: InstanceState) -> InstanceState:
 STEPS = {'outline_nz1': outline_nz1, 'drop_rejected': drop_rejected}
 
 
-def run_steps(state: InstanceState, steps: list[dict]) -> InstanceState:
-    """Apply the configured steps in order; the result must be a compact label image of kept instances."""
+def apply_steps(state: InstanceState, steps: list[dict]) -> InstanceState:
+    """Apply the configured steps in order (no check of the result)."""
     for spec in steps:
         params = {k: v for k, v in spec.items() if k != 'name'}
         state = STEPS[spec['name']](state, **params)
+    return state
+
+
+def run_steps(state: InstanceState, steps: list[dict]) -> InstanceState:
+    """Apply the configured steps in order; the result must be a compact label image of kept instances."""
+    state = apply_steps(state, steps)
     if not state.keep.all() or int(state.labels.max()) != len(state.keep):
         raise ValueError('Post-processing must end with only kept, compactly numbered instances (add drop_rejected).')
     return state

@@ -1,4 +1,4 @@
-"""Fit the bagged GBM verifier (weights/verifier_gbm.pkl).
+"""Fit the bagged GBM verifier (weights/verifier_gbm.pkl) or, with --columns, the final pipeline's keep model.
 
 Input per candidate: the 46 features + the out-of-fold crop-CNN score.
 Target: u (mean matched IoU over annotators). Sample weight 1/(candidates in
@@ -11,6 +11,11 @@ TRAIN-only round (see README) and kept frozen for this full refit.
         --out work/runs/verifier_gbm.pkl
     # held-out evaluation model used by the notebook (fold-0 frames excluded):
     python train/train_gbm.py ... --exclude-fold 0 --out work/runs/verifier_gbm_without_fold0.pkl
+    # keep model of the final pipeline: the same recipe on 59 columns (46 features, crop-CNN score, then the
+    # out-of-fold context votes and detector columns from train/build_keep_columns.py, in that order)
+    python train/train_gbm.py --data work/verifier_data_fz.npz --cnn work/runs/crop_cnn_fz/cnn_oof_scores.npz \
+        --columns l2=work/keep_columns/context_votes.npz dv=work/keep_columns/detector_columns_y4.npz --out work/runs/keep_gbm_y4.pkl
+Each --columns file holds keys, counts (same frames and candidate order as --data) and values (n_candidates, k).
 """
 from __future__ import annotations
 
@@ -30,11 +35,11 @@ BAGS_PER_SEED = 20
 TAU = .25
 
 
-def frame_rows(keys, counts, features, targets, cnn):
-    """[(key, X (n, 47), u (n,))] per frame, frames in sorted key order."""
+def frame_rows(keys, counts, features, targets, cnn, extra=()):
+    """[(key, X (n, 47 + extra columns), u (n,))] per frame, frames in sorted key order."""
     rows, i = {}, 0
     for k, n in zip(keys, counts):
-        rows[str(k)] = (np.hstack([features[i:i+n], cnn[i:i+n, None]]), targets[i:i+n, 1])
+        rows[str(k)] = (np.hstack([features[i:i+n], cnn[i:i+n, None]]+[e[i:i+n] for e in extra]), targets[i:i+n, 1])
         i += n
     return [(k, *rows[k]) for k in sorted(rows)]
 
@@ -61,22 +66,34 @@ def main():
     ap.add_argument('--cnn', type=Path, required=True)
     ap.add_argument('--folds', type=Path, default=Path('configs/folds_full.json'))
     ap.add_argument('--exclude-fold', type=int, help='leave this fold\'s frames out (for an honest held-out check)')
+    ap.add_argument('--columns', nargs='*', default=[], metavar='NAME=NPZ',
+                    help='keep model: extra column groups appended in this order (final pipeline: l2=... dv=...)')
     ap.add_argument('--out', type=Path, required=True)
+    ap.add_argument('--threads', type=int, default=8, help='OpenMP threads per fit (results do not depend on it)')
     ap.add_argument('--smoke', action='store_true', help='2 bags')
     a = ap.parse_args()
     d, c = np.load(a.data), np.load(a.cnn)
     assert (d['keys'] == c['keys']).all() and (d['counts'] == c['counts']).all()
-    rows = frame_rows(d['keys'], d['counts'], d['features'], d['targets'], c['oof_u'])
+    extra, names = [], []
+    for spec in a.columns:
+        name, path = spec.split('=', 1)
+        e = np.load(path)
+        assert (e['keys'] == d['keys']).all() and (e['counts'] == d['counts']).all(), f'{name}: rows differ from --data'
+        extra.append(np.asarray(e['values'], np.float64).reshape(len(d['features']), -1))
+        names.append(name)
+    rows = frame_rows(d['keys'], d['counts'], d['features'], d['targets'], c['oof_u'], extra)
     if a.exclude_fold is not None:
         held = set(json.loads(a.folds.read_text())['folds'][a.exclude_fold]['heldout_sources'])
         rows = [r for r in rows if r[0] not in held]
     seeds, bags = (BAG_SEEDS[:1], 2) if a.smoke else (BAG_SEEDS, BAGS_PER_SEED)
-    models = [m for seed in seeds for m in fit_bag(rows, bags, seed)]
+    models = [m for seed in seeds for m in fit_bag(rows, bags, seed, a.threads)]
     a.out.parent.mkdir(parents=True, exist_ok=True)
+    bundle = {'models': models, 'cols': list(range(d['features'].shape[1])), 'tau': TAU, 'params': PARAMS,
+              'n_frames': len(rows), 'n_candidates': int(sum(len(r[1]) for r in rows)), 'excluded_fold': a.exclude_fold}
+    if names:  # keep model: filament_seg.keep.KeepModel reads the column groups from feature_order
+        bundle.update(feature_order=['x46', 'cnn']+names, seeds=list(seeds), bags_per_seed=bags)
     with open(a.out, 'wb') as f:
-        pickle.dump({'models': models, 'cols': list(range(d['features'].shape[1])), 'tau': TAU, 'params': PARAMS,
-                     'n_frames': len(rows), 'n_candidates': int(sum(len(r[1]) for r in rows)),
-                     'excluded_fold': a.exclude_fold}, f)
+        pickle.dump(bundle, f)
     print(f'{len(models)} GBMs on {len(rows)} frames', flush=True)
 
 
