@@ -866,5 +866,95 @@
   "file_sha256": "43dbeeb01f9df042496ac1d68c172b5f8ad96fce8d86124a86ccb882c1e8c272",
   "seed": 1,
   "fold": 4
+ },
+ "yolo_s2_f0": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s2_f0.pt"
+  ],
+  "file_sha256": "8c526698e145e9df399b5d9ec50c40a578e988dc8503c38e7b8580418b29364f",
+  "seed": 2,
+  "fold": 0
+ },
+ "yolo_s2_f1": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s2_f1.pt"
+  ],
+  "file_sha256": "4891ebdb56ae8174644e0ce66be67021dc981386c6fd41186767031d94189ea8",
+  "seed": 2,
+  "fold": 1
+ },
+ "yolo_s2_f2": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s2_f2.pt"
+  ],
+  "file_sha256": "f1a08ea35a954e07caf79b4b3d7dd36a664a3bd14108be6fd5769d8e104d5fff",
+  "seed": 2,
+  "fold": 2
+ },
+ "yolo_s2_f3": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s2_f3.pt"
+  ],
+  "file_sha256": "041ec71aa4cdabe4c9c6e4d15b1063e1b25ce310566de423dec5c272175ffc75",
+  "seed": 2,
+  "fold": 3
+ },
+ "yolo_s2_f4": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s2_f4.pt"
+  ],
+  "file_sha256": "f49e6cdbe66fd85665da7ad98bc4d974c8fe33490b73374d027072b3fb82b592",
+  "seed": 2,
+  "fold": 4
+ },
+ "yolo_s3_f0": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s3_f0.pt"
+  ],
+  "file_sha256": "6d38721a3e4dcaadc2c37cd18511811e8ff86712d17ce2c88ef1484d3c01f486",
+  "seed": 3,
+  "fold": 0
+ },
+ "yolo_s3_f1": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s3_f1.pt"
+  ],
+  "file_sha256": "34d6da57c07225ade0b41a38fc5444bc5bf66cec75e1e118f979328a8b2b92f2",
+  "seed": 3,
+  "fold": 1
+ },
+ "yolo_s3_f2": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s3_f2.pt"
+  ],
+  "file_sha256": "66cd8c3131cd3b10d8b3a693a53e32681cca3c3388e9477b193a54afe74bc567",
+  "seed": 3,
+  "fold": 2
+ },
+ "yolo_s3_f3": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s3_f3.pt"
+  ],
+  "file_sha256": "d8ee67476cbf7afab0794179d12e5d1ed3d51c9ffa525faeacb4f62b3b7b4a17",
+  "seed": 3,
+  "fold": 3
+ },
+ "yolo_s3_f4": {
+  "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
+  "files": [
+   "yolo_s3_f4.pt"
+  ],
+  "file_sha256": "29af4568d8e235aecd444cf7332ed88e3087a64614a5c4bdf857e72d0e3cb513",
+  "seed": 3,
+  "fold": 4
  }
 }
