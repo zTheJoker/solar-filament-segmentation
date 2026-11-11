@@ -10,12 +10,24 @@ equivalent but not bit-identical weights.
 Hardware for the released runs:
 - **U-Nets:** one NVIDIA H200 (RunPod), with the five folds of each family trained concurrently.
 - **Specialists:** one NVIDIA A100.
+- **Context networks:** one GPU, three folds sharing it.
+- **Detectors:** RTX 5090 / RTX 4090 cards, one fold per card.
+- **Refiners:** RTX 5090 / RTX 4090 cards.
 
 Approximate time per fold:
 - ConvNeXt U-Net: 1.3–1.5 h
 - ResNet34 U-Net: about 1 h
 - Specialist fine-tune: about 15 min
 - Crop CNN: about 1 min
+- Context network: about 40 min
+- YOLO26m-seg detector: 32–41 min (RTX 5090)
+- Refiner: 10–18 min (RTX 5090)
+
+The final pipeline's stages were trained with the project scripts these files were ported from. `train_gbm.py`
+(also in its keep-model mode) and `export_weights.py` were re-run from the ported code: the refit keep models give
+the same test-frame scores as the released ones, bit for bit. The context, detector and refiner scripts are ports of
+the same recipes; they have been run in `--smoke` mode only, so a full retrain from them has not been compared with
+the released weights.
 
 Run everything from the repository root:
 
@@ -41,13 +53,34 @@ python train/train_gbm.py --data work/verifier_data_fz.npz --cnn work/runs/crop_
 python train/train_gbm.py --data work/verifier_data_fz.npz --cnn work/runs/crop_cnn_fz/cnn_oof_scores.npz --exclude-fold 0 \
        --out work/runs/verifier_gbm_fz_without_fold0.pkl
 
-# 5. weights/ (U-Nets fp32 shards < 95 MB, crop-CNN conv/linear tensors bf16, GBMs gzip; hashes in manifest.json)
+# final pipeline (after 0-4; detectors and context networks need the dense weights of the same fold)
+# 5a. context networks: out-of-fold ConvNeXt + ResNet34 maps, then one call per fold
+python train/train_context_unet.py prep --cache work/prepared/1024 --runs work/runs --out work/context_maps
+python train/train_context_unet.py train --cache work/prepared/1024 --maps work/context_maps --fold $k --out work/runs/l2_fold$k
+# 5b. detectors: dataset of fold k (one sample per annotator record), then seeds 0-3 (COCO weights yolo26m-seg.pt from Ultralytics)
+python train/train_detector.py data --fold $k --out work/detector
+python train/train_detector.py train --fold $k --seed $s --out work/detector --weights-in work/yolo26m-seg.pt
+# 5c. out-of-fold context votes and detector columns of the labelled frames, then the keep model (59 columns)
+python train/build_keep_columns.py --data work/verifier_data_fz.npz --out work/keep_columns
+python train/train_gbm.py --data work/verifier_data_fz.npz --cnn work/runs/crop_cnn_fz/cnn_oof_scores.npz \
+       --columns l2=work/keep_columns/context_votes.npz dv=work/keep_columns/detector_columns_y4.npz --out work/runs/keep_gbm_y4.pkl
+#     (single-seed sibling: build_keep_columns.py --seeds 0, dv=.../detector_columns_s0.npz; held-out copy: --exclude-fold 0)
+# 5d. refiners: crop bank of the out-of-fold candidates (natural seeds, truncations, other decodings), then one call per fold
+python train/train_refiner.py bank --data work/verifier_data_fz.npz --cnn work/runs/crop_cnn_fz/cnn_oof_scores.npz --out work/refiner_bank
+python train/train_refiner.py train --bank work/refiner_bank --fold $k --out work/runs/refiner_fold$k
+
+# 6. weights/ (U-Nets fp32 shards < 95 MB, crop-CNN conv/linear tensors bf16, GBMs gzip; hashes in manifest.json)
 python train/export_weights.py --cnx work/runs/cnx_fold{0,1,2,3,4}/best.pt --r34 work/runs/r34_fold{0,1,2,3,4}/best.pt \
        --crop-cnn work/runs/crop_cnn/cnn_fold{0,1,2,3,4}.pt --gbm work/runs/verifier_gbm.pkl \
        --spec work/runs/spec_fold{0,1,2,3,4}/best.pt --crop-cnn-fz work/runs/crop_cnn_fz/cnn_fold{0,1,2,3,4}.pt \
        --gbm-fz work/runs/verifier_gbm_fz.pkl \
        --extra-gbm verifier_gbm_without_fold0.pkl.gz=work/runs/verifier_gbm_without_fold0.pkl \
                    verifier_gbm_fz_without_fold0.pkl.gz=work/runs/verifier_gbm_fz_without_fold0.pkl --out weights
+python train/export_weights.py --add --bf16-autocast-tensors --context work/runs/l2_fold{0,1,2,3,4}/best.pt \
+       --refiner work/runs/refiner_fold{0,1,2,3,4}/best.pt \
+       --detector s0=work/detector/runs/s0/f0/weights/best.pt,...,work/detector/runs/s0/f4/weights/best.pt s1=... s2=... s3=... \
+       --keep-gbm keep_gbm_y4.pkl.gz=work/runs/keep_gbm_y4.pkl keep_gbm_dv.pkl.gz=work/runs/keep_gbm_dv.pkl \
+                  keep_gbm_y4_without_fold0.pkl.gz=work/runs/keep_gbm_y4_without_fold0.pkl --out weights
 ```
 
 Every script accepts `--smoke`, which runs it on a few frames for one epoch. This checks that the
@@ -84,4 +117,10 @@ Annotator records of the same frame always stay together.
   calibration frames (PQ 0.4494 → 0.4520) and on the out-of-fold training frames.
 - **FZ.** The specialist recipe and the 50/50 fusion were pre-registered and assessed once on the
   same 80 frames, PQ 0.474 vs 0.458 for lite. That run trained on the 531 frames.
+- **Final pipeline.** Context networks, detectors, the keep model, the refiner and the sub-pixel shift were each
+  adopted by a rule written before the held-out frames were scored, again in rounds trained on the 531 frames only
+  (METHODS.md). The keep model and the refiner learn from out-of-fold inputs only: every context vote, detector
+  column, fused map and u_FZ of a training frame comes from fold networks that never saw it.
+- **The sub-pixel shift** (−0.23, +0.05) px is a measurement (the IoU-optimal offset of matched training instances),
+  not a tuned value.
 - **The full refits** (all 707 frames, the released weights) reuse all of these settings unchanged.
