@@ -1,5 +1,5 @@
-# Exact environment the notebook was executed in (Python 3.13.5, Linux x86_64).
-# CPU: as listed. CUDA GPU: replace the two +cpu pins by the CUDA builds of torch 2.11.0 / torchvision 0.26.0.
+# Pinned environment, CPU builds of PyTorch (Python 3.13.5, Linux x86_64). The saved notebook ran on a GPU with the same
+# versions and the CUDA 12.8 builds of torch 2.11.0 / torchvision 0.26.0: requirements-cuda.txt is that environment.
 # On macOS: drop the +cpu suffixes.
 # ultralytics-opencv-headless is the Ultralytics package (AGPL-3.0) built against opencv-python-headless.
 # With uv: uv pip install --index-strategy unsafe-best-match -r requirements.txt

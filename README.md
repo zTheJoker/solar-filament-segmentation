@@ -6,175 +6,172 @@ This is the code and model weights for our final entry to the Kaggle competition
 The task is instance segmentation of solar filaments in full-disk GONG H-alpha frames
 (2048×2048). Every filament is one disjoint mask, submitted as a COCO RLE row.
 
-Two pipelines are included, selected by config:
-- **FZ_nz1** (default, `configs/fz_nz1.yaml`): the final pipeline. It is lite plus native-resolution
-  small-filament specialists.
-- **Lite** (`configs/f_lite.yaml`, also known as F_full_refit_nz1): our earlier submission, public
-  leaderboard **0.39**. It has no specialists, which makes it about 2.3× faster on a CPU (104 s vs 238 s per frame).
+Three pipelines are included, selected by config:
+- **Final** (default, `configs/final.yaml`, submission `y4_v2_t60_s`, public leaderboard **0.40**): FZ_nz1 plus
+  context networks, detector votes, a keep model, an instance refiner and a sub-pixel shift.
+  `configs/final_single_seed.yaml` is the same with the detectors of one training seed (submission `dv_v2_t60_s`,
+  public 0.40).
+- **FZ_nz1** (`configs/fz_nz1.yaml`, public 0.39): dense U-Nets with native-resolution small-filament specialists, a
+  verifier and the expected-IoU outline. Its candidates and verifier are the first half of the final pipeline.
+- **Lite** (`configs/f_lite.yaml`, also known as F_full_refit_nz1, public 0.39): FZ_nz1 without the specialists.
 
-**Reproduce the submissions:** open `notebooks/pipeline_demo.ipynb`, which is saved with its outputs.
-It loads the weights stored in this repository, runs both pipelines on the test frames and checks each
-`submission.csv` against the file we submitted. No retraining is needed.
+**Reproduce the submissions:** open `notebooks/pipeline_demo.ipynb`, which is saved with its outputs. It loads the
+weights stored in this repository, runs the final pipeline on the 180 test frames and checks the result against the
+file we submitted. No retraining is needed. The methods, the validation protocol and what did not work are described
+in [METHODS.md](METHODS.md).
 
 ## Method
 
-**Base networks.** Two families of U-Nets, each trained as 5 calendar-month folds on all 707
-labelled frames:
-- ConvNeXt-T encoder: produces the segmentation
-- ResNet34 encoder: provides a second opinion
+**Dense networks (20).** Every network family is trained as 5 calendar-month folds on all 707 labelled frames; every
+network averages 8 dihedral views.
+- 5 ConvNeXt-T U-Nets at 1024²: the base segmentation map.
+- 5 small-filament specialists: the same U-Nets fine-tuned on native-resolution crops with extra weight on small
+  filaments, run on the full 2048² frame. Their map is averaged 50/50 with the upsampled base map: the **fused map**.
+- 5 ResNet34 U-Nets at 1024²: a second opinion, used only through six vote features.
+- 5 context U-Nets: ConvNeXt-T U-Nets whose input is the frame plus the maps of the ConvNeXt and ResNet34 networks of
+  the same fold. Used only through six vote features.
 
-Both families predict every frame at 1024² with 8-view dihedral test-time augmentation. The averaged
-ConvNeXt foreground map is upsampled to 2048².
+**Candidates.** The fused map is thresholded at 0.4 and split into connected candidates of at least 150 px.
 
-**Small-filament specialists (FZ only).** Downsampling to 1024 loses faint, thin, small filaments.
-These are most of what the base networks miss.
-- Each ConvNeXt fold network is fine-tuned on **native-resolution** 768-px crops. Half of the crops
-  are centred on a small filament, and the loss puts extra weight on small filaments.
-- The 5 specialists predict the full 2048 frame, with 8 views.
-- Their mean map is averaged 50/50 with the base map.
+**FZ verifier.** 46 image-only features plus the score of a crop CNN (5 ResNet18) go into a bagged gradient-boosting
+model that predicts u_FZ, the IoU a candidate is expected to have with an annotator's filament (0 if unmatched).
 
-**Candidates.** The (fused) map is thresholded at 0.4 and split into connected candidates of at least
-150 px.
+**Expected-IoU outline (nz1).** Every candidate is re-outlined: among nested threshold levels of the fused map it
+takes the outline with the highest expected IoU, growing only inside its own Voronoi territory, so the outlines stay
+disjoint.
 
-**Verifier.** It decides which candidates to keep:
-- Inputs: 46 image-only features plus the score of a crop CNN.
-- Model: a bagged gradient-boosting model that predicts u, the IoU a candidate is expected to have
-  with an annotator's filament (0 if unmatched). A candidate is kept when u ≥ 0.25.
-- It is trained on out-of-fold candidates, so it learns which kinds of detection the networks get
-  wrong, such as faint fragments, limb features and doubled outlines.
-- FZ has its own verifier, retrained on fused-map candidates.
+**Detector votes.** Twenty YOLO26m-seg detectors (4 training seeds × 5 folds) run on the native frame. Their
+instances are never output; six agreement columns per candidate (best IoU with a detector instance, its confidence,
+coverage, …), measured on the nz1 outline and averaged over the detectors, tell the keep model how a different kind of
+model sees the candidate.
 
-**Outline.** Each kept candidate is re-outlined: among nested threshold levels of the same map, it
-takes the outline with the highest expected IoU. Growth stays inside the candidate's Voronoi
-territory, so instances remain disjoint.
+**Keep model.** A second bagged GBM on 59 columns (the 46 features, the crop-CNN score, 6 context votes and 6
+detector columns) predicts u; a candidate is kept when u ≥ 0.25 (keeping raises PQ only when u is above about PQ/2).
+
+**Refiner.** Five instance refiners (ConvNeXt-T U-Nets on rotated native-resolution crops of each candidate, with the
+image, the fused map of their own fold, the candidate and its neighbours as input) re-draw the kept candidates that
+the FZ verifier is least sure of (u_FZ ≤ 0.55): those are mostly filaments the dense maps cut short.
+
+**Sub-pixel shift and paste-back.** The annotators' drawings sit about 0.23 px above our flip-symmetric masks. The
+refined probability and, for the other kept candidates, the fused map the nz1 outline is cut from are moved by
+(−0.23, +0.05) px before thresholding. Overlaps go to the higher refined probability; every filament is one disjoint
+mask.
 
 ## Quick start
 
 ```bash
 git clone <this repo> && cd <repo>
 python3.13 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt               # CPU build of PyTorch 2.11 (what we ran)
+pip install -r requirements.txt               # CPU build of PyTorch 2.11 (see below for CUDA)
 kaggle competitions download -c filament-segmentation-2026 -p data
 unzip -q data/filament-segmentation-2026.zip -d data   # -> data/MAGFiLO_1.0_Kaggle_2026/
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/pipeline_demo.ipynb
 # or just a submission file:
-python -m filament_seg --output outputs/submission.csv               # FZ_nz1
-python -m filament_seg --lite --output outputs/submission_lite.csv   # lite
+python -m filament_seg --output outputs/submission.csv                                        # final
+python -m filament_seg --config configs/final_single_seed.yaml --output outputs/single.csv    # single-seed sibling
+python -m filament_seg --fz --output outputs/submission_fz.csv                                # FZ_nz1
+python -m filament_seg --lite --output outputs/submission_lite.csv                            # lite
 ```
 
-Set `FILAMENT_DATA_ROOT=/path/to/MAGFiLO_1.0_Kaggle_2026` if the data lives elsewhere. For a quick look
-on a CPU, set `FILAMENT_DEMO_MAX_FRAMES=3` before running the notebook.
+Set `FILAMENT_DATA_ROOT=/path/to/MAGFiLO_1.0_Kaggle_2026` if the data lives elsewhere. `FILAMENT_DEMO_MAX_FRAMES=3`
+runs the notebook on three test frames.
 
-- **GPU:** install the CUDA build of `torch==2.11.0`/`torchvision==0.26.0` instead of the `+cpu`
-  pins. `inference.device: auto` then uses the GPU.
+- **GPU (recommended for the final pipeline):** `pip install -r requirements-cuda.txt` instead (the same versions with
+  the CUDA 12.8 builds of PyTorch; the environment of the saved notebook run). `inference.device: auto` then uses the
+  GPU.
+- **With uv:** `uv pip install --index-strategy unsafe-best-match -r requirements.txt`.
 - **macOS:** drop the `+cpu` suffix.
+- `ultralytics-opencv-headless` is the Ultralytics package built against OpenCV-headless; it runs the detectors with
+  telemetry switched off.
 
-## The two modes: score and runtime
+## Run time and hardware
 
-**FZ_nz1 (default)**
-- Networks per frame: 5 ConvNeXt + 5 ResNet34 at 1024², and 5 specialists at 2048², each with
-  8 views. Then 5 crop CNNs and a GBM.
-- Score: internal held-out PQ **+0.015** over lite (see Results); public leaderboard **0.39** (the same as lite at two decimals; one leaderboard step is about +0.012 internal PQ on only ~90 public images).
-- CPU: **238 s per frame** (236 s of it is the networks), about **12 h** for the 180 test frames. This is the median of the 10 spot-check frames.
-- GPU: not timed end to end for this repository. The logged GPU runs suggest about 15–20 s per frame,
-  under an hour for the test set. Those logs recorded per network:
-  - base ConvNeXt: about 1 s per frame on an H200
-  - ResNet34: about 0.6 s per frame on an H200
-  - specialist: about 1.7 s per frame on an A100
+**Final pipeline, measured end to end** (the saved notebook run): one NVIDIA RTX 5090 (32 GB), 32 vCPUs, Python
+3.13.5, PyTorch 2.11.0 with CUDA 12.8.
+- 180 test frames in **76 minutes**, a median of **24.7 s per frame**:
+  - segmenters, voters and specialists (15 U-Nets × 8 views): 9.0 s
+  - detectors: 13.0 s, most of it the CPU-side computation of the agreement columns from the 20 models' masks
+  - context networks 0.9 s, refiner 0.5 s, candidates, features, verifier, keep model, paste-back and encoding 1.3 s
+- Loading the 50 networks and 2 GBMs: 8.5 s. The whole notebook (test set plus the 142 held-out frames of section 6):
+  87 minutes.
+- The single-seed config on an RTX 4090 (24 GB): median 12.6 s per frame (five detectors instead of twenty).
+- Peak GPU memory about 18 GB with every model resident.
 
-  All of these were measured with several jobs sharing the GPU, and include writing maps to disk.
-
-**Lite (F_full_refit_nz1)**
-- Networks per frame: 5 ConvNeXt + 5 ResNet34 at 1024², each with 8 views. Then 5 crop CNNs and a GBM.
-- Score: public leaderboard **0.39**.
-- CPU: **104 s per frame**, about **5.2 h** for the 180 test frames.
-- GPU: about 8 s per frame by the same estimate (about 25 min for the test set); not timed end to end.
-
-CPU figures were measured on 8 vCPUs (AMD EPYC Genoa), 16 GB RAM, no GPU, Python 3.13.5 and
-PyTorch 2.11 (CPU build), with the machine not shared. They are medians per test frame.
-- **Where the time goes.** Almost everything is network inference. The rest takes about 3 s per
-  frame: candidates, features, crop CNNs, GBM, outline and RLE encoding.
-- **Peak memory.** About 3–5 GB. The specialists run one view at a time at 2048².
+**FZ_nz1 and lite on a CPU** (measured for the earlier versions of this repository, 8 vCPUs AMD EPYC Genoa, PyTorch 2.11
+CPU build): 238 s and 104 s per frame. The final pipeline was not timed end to end on a CPU; it adds 5 context networks
+at 1024², 20 detectors at 1536 and the refiners to FZ_nz1's networks.
 - **Caching.** Results are cached per frame (`outputs/frames_*`), so an interrupted run resumes.
 
 ## Results
 
 **Submitted files** (in `reference/`):
-- **FZ_nz1:** `submission_FZ_nz1.csv`, sha256 `8f07cb44…3410`, 1169 masks
-- **Lite:** `submission_F_full_refit_nz1.csv`, sha256 `df7e63f7…6c5e`, 1088 masks, public
-  leaderboard 0.39
-- In both, 177 of the 180 test frames have at least one mask.
+- **Final:** `submission_final.csv`, sha256 `3b136cbe…7195987`, 1187 masks on 177 images, public leaderboard 0.40
+- **Final, single detector seed:** `submission_final_single_seed.csv`, sha256 `e85ef573…170d8b`, 1194 masks
+  (submission 58226207), public 0.40
+- **FZ_nz1:** `submission_FZ_nz1.csv`, sha256 `8f07cb44…3410`, 1169 masks, public 0.39
+- **Lite:** `submission_F_full_refit_nz1.csv`, sha256 `df7e63f7…6c5e`, 1088 masks, public 0.39
 
-**Byte-exact reproduction of the submitted files.** We fed the probability maps saved by the GPU runs
-that produced each submission through this repository's code. It reproduces both files byte for
-byte: FZ sha `8f07cb44…`, lite sha `df7e63f7…`, 180/180 frames each. `train/train_gbm.py`, run on the
-same out-of-fold tables, rebuilds both GBM verifiers with identical predictions.
+**What each config reproduces.**
 
-**End-to-end on a CPU.**
-- **FZ, 10 test frames:** computed end to end, every 18th frame:
-  - The same 93 candidates, the same keep/reject decision for every one of them, and the same 69 masks.
-  - 1 of the 10 frames is bit-identical.
-  - 29 masks differ by 1–4 pixels each, 45 pixels in total out of 126 k mask pixels (0.04%).
-- **Lite, all 180 test frames:**
-  - The same 1088 masks, with the same IDs and order, and the same keep/reject decision for every
-    candidate.
-  - 1046 masks are bit-identical.
-  - 42 masks differ by 1–2 pixels each, 44 pixels in total out of 2.27 M mask pixels.
+Two checks, for each submitted file:
+1. **From the stored maps: byte-identical.** We fed the intermediate outputs saved by the GPU runs that produced
+   each submission (dense maps, context maps, detector instances, refined probabilities) through this repository's
+   code. All four files come out byte for byte: final `3b136cbe…`, single seed `e85ef573…`, FZ_nz1 `8f07cb44…`,
+   lite `df7e63f7…`. Every intermediate stage matches too: the context votes, the detector columns, the keep
+   model's scores (max |Δu| = 0), the nz1 outlines, the shifted outlines and the final masks. `train/train_gbm.py`,
+   run on the same out-of-fold tables, rebuilds both keep models with identical test scores.
+2. **End to end on a GPU: the same decisions, a few pixels apart.** The submissions' intermediate outputs were
+   computed on several GPU types with other PyTorch versions. Recomputing them on another GPU changes floating-point
+   details (single float16 steps in the maps, one uint8 level in a few refined probabilities), which moves single
+   pixels across a threshold. So the end-to-end files are not byte-identical. We measured how far they are:
+   - **Final** (`configs/final.yaml`, notebook run, RTX 5090): the same keep decision for every candidate and the
+     same number of masks in every frame (1187); 41 of 180 frames bit-identical; 278 masks differ by 620 pixels in
+     total (0.03 % of 2.29 M mask pixels; the largest change is 70 pixels on one mask, IoU 0.94). One frame gains a
+     low-scored candidate, which shifts the row order of two masks.
+   - **Single seed** (`configs/final_single_seed.yaml`, command line, RTX 4090): the same keep decision for every
+     candidate and the same number of masks in every frame (1194); 50 of 180 frames bit-identical; 268 masks differ by
+     757 pixels in total (0.03 % of 2.31 M mask pixels; the largest change is 122 pixels on one mask, IoU 0.94). One
+     frame has 9 candidates instead of 10.
+   - **FZ_nz1**, as a by-product of the same runs: 1168 of 1169 masks on the RTX 5090 (one candidate's u_FZ crosses
+     0.25), 234 masks differ by 301 pixels; 1169 of 1169 on the RTX 4090, 199 masks differ by 319 pixels.
+   - Stage by stage on the GPU, each stage fed the stored inputs of that stage (3 frames): context maps within one
+     float16 step (vote features within 0.0014); refined probabilities within one uint8 level (2 of 2.9 M pixels
+     change side of the 0.60 threshold); detectors: 19 of 20 models give the same number of instances, confidences
+     within 0.0013.
 
-**Why the hash differs on a CPU.** The submissions' maps were computed on GPUs. The base networks ran
-in TF32 there, and the specialists in bf16. CPU arithmetic differs at the level of one float16 step
-(or one uint8 level for the specialists), which is enough to move single pixels across a threshold.
+**Held-out results** (pre-registered single runs on 80 assessment frames that no design choice used; every model
+trained on 531 other labelled frames; host's PQ pooled over 140 annotator records; details in METHODS.md):
+- FZ_nz1: PQ 0.4735 (673 matches, 275 false positives, 335 misses)
+- Final: PQ **0.4806** (666 matches, 241 false positives, 342 misses; SQ 0.691, RQ 0.696)
+- The final pipeline keeps fewer false positives and splits fewer filaments; its gain over FZ_nz1 on these 80 frames
+  is within their noise, and both show 0.39–0.40 on the public leaderboard.
 
-**Held-out labelled frames** (notebook section 6): 142 frames of fold 0 and 236 annotator records,
-using only models that never saw these frames. These are single-fold pipelines, so they slightly
-understate the 5-model ensembles. The metric is the host's PQ.
+**Held-out frames in the notebook** (section 6): the 142 frames of fold 0 and 236 annotator records, using only
+the fold-0 networks, detectors and refiner and GBMs refit without fold 0, so no model saw these frames. These are
+single-fold pipelines, which understate the 5-model ensembles (the refiner's gain is an ensemble effect).
+- FZ_nz1: PQ 0.4820 (TP 1101, FP 408, FN 532; SQ 0.688, RQ 0.701)
+- Final: PQ **0.4867** (TP 1085, FP 363, FN 548; SQ 0.691, RQ 0.704), +0.0047
+- The final pipeline drops 45 false positives for 16 lost matches, and splits fewer filaments (GT filaments covered
+  by two or more predictions: 51 → 36).
 
-**FZ (default):**
-- All candidates: PQ 0.436 (TP 1185, FP 900, FN 448)
-- After the verifier: PQ 0.481
-- After the verifier and the nz1 outline (final): PQ **0.483** (SQ 0.688, RQ 0.702)
-
-**Lite:**
-- All candidates: PQ 0.424 (TP 1118, FP 810, FN 515)
-- After the verifier: PQ 0.461
-- After the verifier and the nz1 outline (final): PQ **0.464** (SQ 0.681, RQ 0.682)
-
-**FZ − lite: +0.019 PQ on these frames.** Recall of GT filaments under 1000 px rose from 0.526
-to 0.595, and recall of larger ones from 0.711 to 0.732.
-
-**Development protocol.**
-- **Lite.** The recipe was trained on 531 frames and scored once on 80 untouched frames: PQ
-  **0.457**. The previous pipeline scored 0.423 there (paired month-block 95% CI of the gain: +0.017
-  to +0.055).
-- **FZ.** It was pre-registered and assessed once on the same 80 frames: PQ **0.474**, a gain of
-  **+0.015** over lite (95% CI +0.006 to +0.025). The gain is positive in all 14 leave-one-month-out
-  subsets. It was also positive on the out-of-fold training frames (+0.014) and on the calibration
-  frames (+0.011).
-- **Where the FZ gain comes from.** Recall of small GT filaments (< 1000 px) rose from 0.53 to 0.60.
-
-**Context.** On frames labelled by two annotators, one annotator scored against the other reaches a
-PQ of about 0.34. Public leaderboard scores have run at about 0.86× our internal PQ.
+**Context.** On frames labelled by two annotators, one annotator scored against the other reaches a PQ of about
+0.34. Public leaderboard scores have run at about 0.84–0.86× our internal PQ.
 
 ## Weights
 
-All weight files are under 95 MB, so no Git LFS is needed.
+All weight files are under 95 MB, so no Git LFS is needed. `weights/manifest.json` holds a SHA-256 of every file
+or model; the networks (hash of the reassembled state dict) and the detectors (hash of the file) are checked on load.
 
-- **U-Nets** (15 networks): fp32 safetensors, 2 shards each:
-  - ConvNeXt `cnx_fold*`
-  - ResNet34 `r34_fold*`
-  - specialists `spec_fold*`
-- **Crop CNNs** `crop_cnn_fold*` (lite) and `crop_cnn_fz_fold*` (FZ):
-  - They only run under bf16 autocast, which rounds their conv/linear weights to bf16 on every call.
-  - Those tensors are therefore stored in bf16; this is lossless for the computation (the byte-exact
-    checks above use these files).
-  - BatchNorm tensors stay fp32.
-- **GBM verifiers**, as gzip pickles:
-  - `verifier_gbm.pkl.gz` (lite) and `verifier_gbm_fz.pkl.gz` (FZ)
-  - the fold-0-excluded copies used by the held-out evaluation
-- **`manifest.json`:** a SHA-256 of every reassembled model, checked on load.
-
-We also tried storing the U-Nets in fp16. That changed the masks of a test frame that fp32
-reproduces exactly, so the U-Nets stay fp32.
+- **Dense U-Nets** (`cnx_fold*`, `spec_fold*`, `r34_fold*`): fp32 safetensors, 2 shards each. We tried fp16 storage;
+  it changed the masks of a test frame that fp32 reproduces exactly, so they stay fp32.
+- **Crop CNNs** (`crop_cnn_fold*`, `crop_cnn_fz_fold*`), **context networks** (`l2_fold*`) and **refiners**
+  (`refiner_fold*`): they only run under bf16 autocast, which rounds their convolution and linear weights to bf16 on
+  every call, so those tensors are stored in bf16 (the computation is identical; checked on CPU and GPU). The other
+  tensors stay fp32.
+- **Detectors** (`yolo_s{seed}_f{fold}.pt`): the Ultralytics checkpoints as trained (fp16).
+- **GBMs** (gzip pickles, scikit-learn 1.9.1): `verifier_gbm.pkl.gz` (lite), `verifier_gbm_fz.pkl.gz` (FZ verifier),
+  `keep_gbm_y4.pkl.gz` and `keep_gbm_dv.pkl.gz` (keep models of the two final configs), and fold-0-excluded copies
+  for the notebook's held-out evaluation.
 
 ## Repository map
 
@@ -182,26 +179,35 @@ reproduces exactly, so the U-Nets stay fp32.
 filament_seg/            the inference package (one module per stage)
   config.py              YAML config loading; all paths relative to the repo root
   data.py                image discovery, preprocessing, ground-truth loading
-  models.py              ConvNeXt-T U-Net, ResNet34 U-Net, crop CNN; sharded weight loading + hash check
-  inference.py           8-view TTA, fold ensembling, specialists at 2048 and map fusion
+  models.py              U-Nets, crop CNN, refiner; sharded weight loading + hash check
+  inference.py           8-view TTA, fold ensembling, specialists at 2048, map fusion, per-fold maps
   candidates.py          connected-component candidates (fg >= 0.4, area >= 150, holes filled)
-  features.py            the 46 verifier features
+  features.py            the 46 verifier features (incl. the six vote features)
   verifier.py            crop extraction, crop-CNN scores, bagged GBM, keep decision
+  context.py             context networks -> six vote features
+  detector.py            YOLO detectors -> six agreement columns
+  keep.py                keep model (59 columns)
+  refiner.py             rotated native crops, refiner networks, refined probabilities
+  pasteback.py           sub-pixel shift, re-drawn and re-cut masks, overlap resolution
   postprocess.py         configurable post-processing steps: nz1 outline, drop rejected
   submission.py          RLE encoding, CSV writing and validation
   metrics.py             host's PQ, IoU/Dice distributions, 1:n / n:1 relations
   pipeline.py            frame-level pipeline + resumable directory runner
   viz.py                 plots and overlays
-  __main__.py            command line: python -m filament_seg [--lite]
+  __main__.py            command line: python -m filament_seg [--config ... | --fz | --lite]
 configs/
-  fz_nz1.yaml            every setting of the default FZ_nz1 pipeline
-  f_lite.yaml            the lite pipeline (F_full_refit_nz1)
+  final.yaml             every setting of the final pipeline
+  final_single_seed.yaml the final pipeline with one detector seed
+  fz_nz1.yaml            FZ_nz1
+  f_lite.yaml            lite (F_full_refit_nz1)
   folds_full.json        calendar-month folds of the 707 labelled frames
-weights/                 44 weight files + manifest.json, 2.08 GB, all < 95 MB (see Weights)
+weights/                 77 weight files + manifest.json, 3.89 GB, all < 95 MB (see Weights)
 notebooks/pipeline_demo.ipynb   the end-to-end demo (executed)
 train/                   scripts that produced the weights (see train/README.md)
-reference/               the two submitted CSVs (for the reproduction checks)
+reference/               the four submitted CSVs (for the reproduction checks)
+requirements.txt         pinned versions, CPU build of PyTorch; requirements-cuda.txt: the same with CUDA 12.8 builds
 tests/                   fast data-free unit tests
+METHODS.md               methods, validation protocol, ablations, limitations
 ```
 
 ## Data and rules we followed
@@ -212,15 +218,36 @@ tests/                   fast data-free unit tests
   - No other MAGFiLO releases.
   - No additional GONG frames in the final models. Extra GONG frames and pseudo-labels were tried
     during development and dropped because they lowered the score.
+  - Pretrained starting points: ImageNet weights of the encoders (timm, torchvision) and the official COCO weights of
+    YOLO26m-seg.
 - **Inference uses only the test image itself.** Nothing else is read at inference time:
   - no file-name date or site
   - no metadata
   - no neighbouring frames
   - no test-time training
 - **The annotator structure is used only during training.** One frame has several annotators; the
-  soft targets average them, and the verifier's targets are averaged over annotators.
-- **Leaderboard feedback did not select the pipeline.** Model selection used held-out labelled
-  months, and τ, the thresholds and the outline rule were frozen before any test export.
+  soft targets average them, the detectors see one sample per annotator record, and the keep model's targets are
+  averaged over annotators.
+- **Leaderboard feedback did not select the pipeline.** Every stage was adopted by a rule written down before the
+  held-out frames were scored (METHODS.md, section 2), and the thresholds and the shift were frozen before any test
+  export.
+
+## Third-party components
+
+Licences as declared in the package metadata of the pinned versions (`requirements.txt`) and by the weight
+publishers; please check them before redistributing.
+- **Ultralytics** (`ultralytics-opencv-headless==8.4.210`, detector training and inference) and **ultralytics-thop**:
+  AGPL-3.0. The official COCO weights `yolo26m-seg.pt` the detectors were fine-tuned from are published by Ultralytics
+  under AGPL-3.0, so the detector weights in `weights/yolo_*.pt` are derived from AGPL-3.0 material.
+- **PyTorch** 2.11.0: BSD-3-Clause. **torchvision** 0.26.0: BSD-3-Clause (its ImageNet ResNet34 weights initialised
+  the ResNet34 U-Nets).
+- **timm** 1.0.31: Apache-2.0. The encoders were initialised from the timm weights `convnext_tiny.fb_in22k_ft_in1k`
+  (ConvNeXt release by Meta, MIT licence) and `resnet18.a1_in1k` (timm, Apache-2.0).
+- **scikit-learn** 1.9.1 (FZ verifier and keep model): BSD-3-Clause. **NumPy** 2.5.4 and **SciPy** 1.18.1:
+  BSD-3-Clause. **threadpoolctl**: BSD-3-Clause. **scikit-image**: BSD-3-Clause.
+- **pycocotools** 2.0.11: BSD-2-Clause. **OpenCV** (`opencv-python-headless` 5.0.0.93): Apache-2.0.
+  **safetensors** 0.8.0: Apache-2.0. **Pillow** 13.0.0: MIT-CMU. **PyYAML**: MIT. **Matplotlib**: PSF-based licence.
+- The competition data (MAGFiLO, GONG H-alpha frames) is not included and keeps its own terms.
 
 ## Citation
 

@@ -761,22 +761,6 @@
    "inner_sources": 56
   }
  },
- "keep_gbm_y4.pkl.gz": {
-  "architecture": "keep model: bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
-  "files": [
-   "keep_gbm_y4.pkl.gz"
-  ],
-  "sha256": "c6e8df5c08316888e6b9f3d5696ea34a969313fd2a053949fb7f14e5bea3db41",
-  "source_sha256": "ceb3a3210de022ccb23d5189a1fba1c69dfa0485afe4d6d2b6e192ff94f45a62"
- },
- "keep_gbm_dv.pkl.gz": {
-  "architecture": "keep model: bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
-  "files": [
-   "keep_gbm_dv.pkl.gz"
-  ],
-  "sha256": "06567c180c368bbe37ff28097fa98a318f9ee9942422389524912e3bdccce6f1",
-  "source_sha256": "564772fa053b4077844242bf24ab9eed2f2bda0c33d622a77a9a2fc2713a4131"
- },
  "yolo_s0_f0": {
   "architecture": "Ultralytics YOLO26m-seg checkpoint (AGPL-3.0 library)",
   "files": [
@@ -956,5 +940,29 @@
   "file_sha256": "29af4568d8e235aecd444cf7332ed88e3087a64614a5c4bdf857e72d0e3cb513",
   "seed": 3,
   "fold": 4
+ },
+ "keep_gbm_y4.pkl.gz": {
+  "architecture": "keep model: bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "keep_gbm_y4.pkl.gz"
+  ],
+  "sha256": "c6e8df5c08316888e6b9f3d5696ea34a969313fd2a053949fb7f14e5bea3db41",
+  "source_sha256": "ceb3a3210de022ccb23d5189a1fba1c69dfa0485afe4d6d2b6e192ff94f45a62"
+ },
+ "keep_gbm_dv.pkl.gz": {
+  "architecture": "keep model: bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "keep_gbm_dv.pkl.gz"
+  ],
+  "sha256": "06567c180c368bbe37ff28097fa98a318f9ee9942422389524912e3bdccce6f1",
+  "source_sha256": "564772fa053b4077844242bf24ab9eed2f2bda0c33d622a77a9a2fc2713a4131"
+ },
+ "keep_gbm_y4_without_fold0.pkl.gz": {
+  "architecture": "keep model: bagged sklearn HistGradientBoostingRegressor (gzip-compressed pickle)",
+  "files": [
+   "keep_gbm_y4_without_fold0.pkl.gz"
+  ],
+  "sha256": "149138f2b55c8f7ad48f71f3ced7bf46f30ffd7e4c2d768a6f8657014ccfb1db",
+  "source_sha256": "e734ddcebc9a581856ac0bf40622ab8546dd13e7b234cdb02569763f57a7465e"
  }
 }
