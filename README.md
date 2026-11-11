@@ -277,4 +277,11 @@ Intersection-over-Union Case*, CVPR 2014.
 
 ## License
 
-MIT (see `LICENSE`). The competition data is not included and keeps its own terms.
+Copyright (C) 2026 Eli Rubinstein. This repository is licensed under the GNU Affero General Public License v3.0
+(AGPL-3.0, see `LICENSE`).
+
+The final pipeline trains and runs its detectors with the Ultralytics library and ships detector weights fine-tuned
+from Ultralytics' COCO weights, both AGPL-3.0, so a repository that distributes them has to be AGPL-3.0 as well.
+Before this change the code of the other stages was released under the MIT licence.
+
+The competition data is not included and keeps its own terms.
