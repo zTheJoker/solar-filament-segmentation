@@ -6,16 +6,17 @@ This is the code and model weights for our final entry to the Kaggle competition
 The task is instance segmentation of solar filaments in full-disk GONG H-alpha frames
 (2048×2048). Every filament is one disjoint mask, submitted as a COCO RLE row.
 
-Three pipelines are included, selected by config:
-- **Final** (default, `configs/final.yaml`, submission `y4_v2_t60_s`, public leaderboard **0.40**): FZ_nz1 plus
-  context networks, detector votes, a keep model, an instance refiner and a sub-pixel shift.
-  `configs/final_single_seed.yaml` is the same with the detectors of one training seed (submission `dv_v2_t60_s`,
-  public 0.40).
+**Our final submission is the default pipeline, `configs/final.yaml`** (Kaggle submission 58253542, public
+leaderboard **0.40**): FZ_nz1 plus context networks, detector votes, a keep model, an instance refiner and a
+sub-pixel shift.
+
+Two earlier versions are kept because the final pipeline is built on them and the ablation in [METHODS.md](METHODS.md)
+compares against them; neither is our final submission:
 - **FZ_nz1** (`configs/fz_nz1.yaml`, public 0.39): dense U-Nets with native-resolution small-filament specialists, a
   verifier and the expected-IoU outline. Its candidates and verifier are the first half of the final pipeline.
 - **Lite** (`configs/f_lite.yaml`, also known as F_full_refit_nz1, public 0.39): FZ_nz1 without the specialists.
 
-**Reproduce the submissions:** open `notebooks/pipeline_demo.ipynb`, which is saved with its outputs. It loads the
+**Reproduce the final submission:** open `notebooks/pipeline_demo.ipynb`, which is saved with its outputs. It loads the
 weights stored in this repository, runs the final pipeline on the 180 test frames and checks the result against the
 file we submitted. No retraining is needed. The methods, the validation protocol and what did not work are described
 in [METHODS.md](METHODS.md).
@@ -67,8 +68,7 @@ kaggle competitions download -c filament-segmentation-2026 -p data
 unzip -q data/filament-segmentation-2026.zip -d data   # -> data/MAGFiLO_1.0_Kaggle_2026/
 jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.timeout=-1 notebooks/pipeline_demo.ipynb
 # or just a submission file:
-python -m filament_seg --output outputs/submission.csv                                        # final
-python -m filament_seg --config configs/final_single_seed.yaml --output outputs/single.csv    # single-seed sibling
+python -m filament_seg --output outputs/submission.csv                                        # final submission
 python -m filament_seg --fz --output outputs/submission_fz.csv                                # FZ_nz1
 python -m filament_seg --lite --output outputs/submission_lite.csv                            # lite
 ```
@@ -94,7 +94,6 @@ runs the notebook on three test frames.
   - context networks 0.9 s, refiner 0.5 s, candidates, features, verifier, keep model, paste-back and encoding 1.3 s
 - Loading the 50 networks and 2 GBMs: 8.5 s. The whole notebook (test set plus the 142 held-out frames of section 6):
   87 minutes.
-- The single-seed config on an RTX 4090 (24 GB): median 12.6 s per frame (five detectors instead of twenty).
 - Peak GPU memory about 18 GB with every model resident.
 
 **FZ_nz1 and lite on a CPU** (measured for the earlier versions of this repository, 8 vCPUs AMD EPYC Genoa, PyTorch 2.11
@@ -104,20 +103,18 @@ at 1024², 20 detectors at 1536 and the refiners to FZ_nz1's networks.
 
 ## Results
 
-**Submitted files** (in `reference/`):
-- **Final:** `submission_final.csv`, sha256 `3b136cbe…7195987`, 1187 masks on 177 images, public leaderboard 0.40
-- **Final, single detector seed:** `submission_final_single_seed.csv`, sha256 `e85ef573…170d8b`, 1194 masks
-  (submission 58226207), public 0.40
-- **FZ_nz1:** `submission_FZ_nz1.csv`, sha256 `8f07cb44…3410`, 1169 masks, public 0.39
-- **Lite:** `submission_F_full_refit_nz1.csv`, sha256 `df7e63f7…6c5e`, 1088 masks, public 0.39
+**Reference files** (in `reference/`):
+- **Final submission:** `submission_final.csv`, sha256 `3b136cbe…7195987`, 1187 masks on 177 images, public
+  leaderboard 0.40
+- Earlier version **FZ_nz1:** `submission_FZ_nz1.csv`, sha256 `8f07cb44…3410`, 1169 masks, public 0.39
+- Earlier version **Lite:** `submission_F_full_refit_nz1.csv`, sha256 `df7e63f7…6c5e`, 1088 masks, public 0.39
 
 **What each config reproduces.**
 
-Two checks, for each submitted file:
+Two checks, for each reference file:
 1. **From the stored maps: byte-identical.** We fed the intermediate outputs saved by the GPU runs that produced
    each submission (dense maps, context maps, detector instances, refined probabilities) through this repository's
-   code. All four files come out byte for byte: final `3b136cbe…`, single seed `e85ef573…`, FZ_nz1 `8f07cb44…`,
-   lite `df7e63f7…`. Every intermediate stage matches too: the context votes, the detector columns, the keep
+   code. All three files come out byte for byte: final `3b136cbe…`, FZ_nz1 `8f07cb44…`, lite `df7e63f7…`. Every intermediate stage matches too: the context votes, the detector columns, the keep
    model's scores (max |Δu| = 0), the nz1 outlines, the shifted outlines and the final masks. `train/train_gbm.py`,
    run on the same out-of-fold tables, rebuilds both keep models with identical test scores.
 2. **End to end on a GPU: the same decisions, a few pixels apart.** The submissions' intermediate outputs were
@@ -128,12 +125,8 @@ Two checks, for each submitted file:
      same number of masks in every frame (1187); 41 of 180 frames bit-identical; 278 masks differ by 620 pixels in
      total (0.03 % of 2.29 M mask pixels; the largest change is 70 pixels on one mask, IoU 0.94). One frame gains a
      low-scored candidate, which shifts the row order of two masks.
-   - **Single seed** (`configs/final_single_seed.yaml`, command line, RTX 4090): the same keep decision for every
-     candidate and the same number of masks in every frame (1194); 50 of 180 frames bit-identical; 268 masks differ by
-     757 pixels in total (0.03 % of 2.31 M mask pixels; the largest change is 122 pixels on one mask, IoU 0.94). One
-     frame has 9 candidates instead of 10.
    - **FZ_nz1**, as a by-product of the same runs: 1168 of 1169 masks on the RTX 5090 (one candidate's u_FZ crosses
-     0.25), 234 masks differ by 301 pixels; 1169 of 1169 on the RTX 4090, 199 masks differ by 319 pixels.
+     0.25), 234 masks differ by 301 pixels.
    - Stage by stage on the GPU, each stage fed the stored inputs of that stage (3 frames): context maps within one
      float16 step (vote features within 0.0014); refined probabilities within one uint8 level (2 of 2.9 M pixels
      change side of the 0.60 threshold); detectors: 19 of 20 models give the same number of instances, confidences
@@ -197,14 +190,13 @@ filament_seg/            the inference package (one module per stage)
   __main__.py            command line: python -m filament_seg [--config ... | --fz | --lite]
 configs/
   final.yaml             every setting of the final pipeline
-  final_single_seed.yaml the final pipeline with one detector seed
   fz_nz1.yaml            FZ_nz1
   f_lite.yaml            lite (F_full_refit_nz1)
   folds_full.json        calendar-month folds of the 707 labelled frames
 weights/                 77 weight files + manifest.json, 3.89 GB, all < 95 MB (see Weights)
 notebooks/pipeline_demo.ipynb   the end-to-end demo (executed)
 train/                   scripts that produced the weights (see train/README.md)
-reference/               the four submitted CSVs (for the reproduction checks)
+reference/               the final submission and the two earlier versions' CSVs (for the reproduction checks)
 requirements.txt         pinned versions, CPU build of PyTorch; requirements-cuda.txt: the same with CUDA 12.8 builds
 tests/                   fast data-free unit tests
 METHODS.md               methods, validation protocol, ablations, limitations

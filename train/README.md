@@ -64,7 +64,7 @@ python train/train_detector.py train --fold $k --seed $s --out work/detector --w
 python train/build_keep_columns.py --data work/verifier_data_fz.npz --out work/keep_columns
 python train/train_gbm.py --data work/verifier_data_fz.npz --cnn work/runs/crop_cnn_fz/cnn_oof_scores.npz \
        --columns l2=work/keep_columns/context_votes.npz dv=work/keep_columns/detector_columns_y4.npz --out work/runs/keep_gbm_y4.pkl
-#     (single-seed sibling: build_keep_columns.py --seeds 0, dv=.../detector_columns_s0.npz; held-out copy: --exclude-fold 0)
+#     (held-out copy for the notebook's evaluation section: --exclude-fold 0)
 # 5d. refiners: crop bank of the out-of-fold candidates (natural seeds, truncations, other decodings), then one call per fold
 python train/train_refiner.py bank --data work/verifier_data_fz.npz --cnn work/runs/crop_cnn_fz/cnn_oof_scores.npz --out work/refiner_bank
 python train/train_refiner.py train --bank work/refiner_bank --fold $k --out work/runs/refiner_fold$k

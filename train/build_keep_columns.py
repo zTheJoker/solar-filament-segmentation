@@ -7,7 +7,7 @@ seeds (one model per seed, so the columns of a training frame come from four det
 twenty). Rows are in the order of build_verifier_data.py's table, so train_gbm.py --columns can append them.
 
     python train/build_keep_columns.py --data work/verifier_data_fz.npz --out work/keep_columns          # released weights
-    python train/build_keep_columns.py ... --seeds 0                                                     # single-seed sibling
+    python train/build_keep_columns.py ... --seeds 0                                                     # one detector seed only
 -> context_votes.npz, detector_columns_<tag>.npz (keys, counts, values)
 """
 from __future__ import annotations

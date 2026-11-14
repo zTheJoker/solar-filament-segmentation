@@ -1,10 +1,9 @@
-# FINAL pipeline "y4_v2_t60_s" (public leaderboard 0.40): FZ_nz1's candidates and verifier, plus
+# FINAL pipeline "y4_v2_t60_s" (our final submission, Kaggle 58253542, public leaderboard 0.40): FZ_nz1's candidates and verifier, plus
 #   * five context networks (ConvNeXt-T U-Nets on image + ConvNeXt map + ResNet34 map) -> 6 vote features,
 #   * twenty YOLO26m-seg detectors (4 seeds x 5 folds) -> 6 agreement columns per candidate,
 #   * a keep model (bagged GBM on 59 columns) that decides which candidates are kept,
 #   * five instance refiners that re-draw the kept candidates the FZ verifier is least sure of,
 #   * a sub-pixel shift (-0.23, +0.05) px of the maps the final masks are cut from.
-# configs/final_single_seed.yaml is the same with the five detectors of seed 0 only (submission dv_v2_t60_s).
 # Every path is relative to the repository root unless it is absolute.
 # The FILAMENT_DATA_ROOT environment variable, if set, overrides data.root.
 

@@ -168,7 +168,7 @@ two-decimal display of the corresponding full refit.
     allowed it (pooled with calibration +.0003).
 - Round 2, plus detector columns (one detector seed): .48142, +.0030 [−.0040, +.0135].
   - TRAIN-OOF +.0027 [+.0005, +.0048]; calibration +.0069 [+.0027, +.0106] (measured with the first refiner).
-- Round 2, plus the sub-pixel shift: .48225, +.0008 [−.0009, +.0030]; public 0.40 (submission 58226207).
+- Round 2, plus the sub-pixel shift: .48225, +.0008 [−.0009, +.0030]; public 0.40 (an intermediate upload).
 - Round 3, detector columns averaged over four seeds (final): .48065, −.0016 [−.0059, +.0012] against one seed.
   - Adopted under a non-inferiority rule fixed in advance (margin −.002) as the lower-variance version of the same
     model: the single seed used in round 2 was the luckiest of four on calibration, and averaging four seeds lowers the
